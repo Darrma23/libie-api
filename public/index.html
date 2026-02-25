@@ -1000,6 +1000,7 @@ body > * { position: relative; z-index: 1; }
   justify-content: center;
   backdrop-filter: blur(8px);
 }
+
 .bsheet.vis { display: flex; }
 .bsheet-inner {
   background: var(--bg2);
@@ -1055,6 +1056,89 @@ body > * { position: relative; z-index: 1; }
   font-family: var(--mono);
 }
 .bs-close:hover { color: var(--t1); background: var(--bg4); }
+
+/* DONASI */
+.donate-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.6);
+  backdrop-filter: blur(8px);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  opacity: 0;
+  pointer-events: none;
+  transition: .25s ease;
+  z-index: 9999;
+}
+
+.donate-modal.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.donate-box {
+  width: min(400px, 92%);
+  background: var(--bg2);
+  border: 1px solid var(--b1);
+  border-radius: 18px;
+  padding: 20px;
+  position: relative;
+
+  transform: scale(.9);
+  transition: .25s ease;
+}
+
+.donate-modal.show .donate-box {
+  transform: scale(1);
+}
+
+.donate-close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  border: none;
+  background: none;
+  color: var(--t3);
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.donate-sub {
+  font-size: 11px;
+  color: var(--t3);
+  margin: 6px 0 16px;
+}
+
+.donate-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--bg3);
+  margin-bottom: 10px;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.donate-item button {
+  background: var(--acc);
+  border: none;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.donate-item.qris {
+  justify-content: center;
+  cursor: pointer;
+  background: var(--acd);
+  color: var(--acc);
+}
 
 /* Report options */
 .rpt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--b1); }
@@ -1188,6 +1272,7 @@ body > * { position: relative; z-index: 1; }
 .mob-tab .mi.list { -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='currentColor'%3E%3Cpath d='M9 2a1 1 0 000 2h2a1 1 0 100-2H9z'/%3E%3Cpath fill-rule='evenodd' d='M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z' clip-rule='evenodd'/%3E%3C/svg%3E") center/contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='currentColor'%3E%3Cpath d='M9 2a1 1 0 000 2h2a1 1 0 100-2H9z'/%3E%3Cpath fill-rule='evenodd' d='M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z' clip-rule='evenodd'/%3E%3C/svg%3E") center/contain no-repeat; }
 .mob-tab .mi.rpt { -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='currentColor'%3E%3Cpath d='M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z'/%3E%3Cpath d='M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z'/%3E%3C/svg%3E") center/contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='currentColor'%3E%3Cpath d='M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z'/%3E%3Cpath d='M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z'/%3E%3C/svg%3E") center/contain no-repeat; }
 .mob-tab .mi.glob { -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='currentColor'%3E%3Cpath fill-rule='evenodd' d='M10 18a8 8 0 100-16 8 8 0 000 16zM4.332 8.027a6.012 6.012 0 011.912-2.706C6.512 5.73 6.974 6 7.5 6A1.5 1.5 0 019 7.5V8a2 2 0 004 0 2 2 0 011.523-1.943A5.977 5.977 0 0116 10c0 .34-.028.675-.083 1H15a2 2 0 00-2 2v2.197A5.973 5.973 0 0110 16v-2a2 2 0 00-2-2 2 2 0 01-2-2 2 2 0 00-1.668-1.973z' clip-rule='evenodd'/%3E%3C/svg%3E") center/contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='currentColor'%3E%3Cpath fill-rule='evenodd' d='M10 18a8 8 0 100-16 8 8 0 000 16zM4.332 8.027a6.012 6.012 0 011.912-2.706C6.512 5.73 6.974 6 7.5 6A1.5 1.5 0 019 7.5V8a2 2 0 004 0 2 2 0 011.523-1.943A5.977 5.977 0 0116 10c0 .34-.028.675-.083 1H15a2 2 0 00-2 2v2.197A5.973 5.973 0 0110 16v-2a2 2 0 00-2-2 2 2 0 01-2-2 2 2 0 00-1.668-1.973z' clip-rule='evenodd'/%3E%3C/svg%3E") center/contain no-repeat; }
+.mob-tab .mi.donasi {-webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='currentColor'%3E%3Cpath d='M2.5 5A2.5 2.5 0 0 1 5 2.5h10A2.5 2.5 0 0 1 17.5 5v10A2.5 2.5 0 0 1 15 17.5H5A2.5 2.5 0 0 1 2.5 15V5zm2.5-.5a1 1 0 0 0-1 1v.5c1.38 0 2.5 1.12 2.5 2.5h6A2.5 2.5 0 0 1 14 6.5h.5a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1H5zm10.5 9c-1.38 0-2.5-1.12-2.5-2.5h-6A2.5 2.5 0 0 1 6 13.5h-.5a1 1 0 0 0-1 1V15a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-.5zM10 7.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z'/%3E%3C/svg%3E") center/contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='currentColor'%3E%3Cpath d='M2.5 5A2.5 2.5 0 0 1 5 2.5h10A2.5 2.5 0 0 1 17.5 5v10A2.5 2.5 0 0 1 15 17.5H5A2.5 2.5 0 0 1 2.5 15V5zm2.5-.5a1 1 0 0 0-1 1v.5c1.38 0 2.5 1.12 2.5 2.5h6A2.5 2.5 0 0 1 14 6.5h.5a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1H5zm10.5 9c-1.38 0-2.5-1.12-2.5-2.5h-6A2.5 2.5 0 0 1 6 13.5h-.5a1 1 0 0 0-1 1V15a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-.5zM10 7.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z'/%3E%3C/svg%3E") center/contain no-repeat;}
 
 .mob-ol {
   display: none;
@@ -1335,6 +1420,7 @@ body > * { position: relative; z-index: 1; }
   <button class="mob-tab" id="mt-eps"><span class="mi list"></span>Endpoint</button>
   <button class="mob-tab" id="mt-report"><span class="mi rpt"></span>Laporan</button>
   <button class="mob-tab" id="mt-status"><span class="mi glob"></span>Status</button>
+  <button class="mob-tab" id="mt-donate"><span class="mi donasi"></span>Donasi</button>
 </nav>
 
 <footer class="contact-bar">
@@ -1417,6 +1503,35 @@ body > * { position: relative; z-index: 1; }
       <button class="send-cancel" id="sendCancelBtn" type="button">Batal</button>
       <button class="send-submit" id="sendSubmitBtn" type="button">Kirim ke Developer</button>
     </div>
+  </div>
+</div>
+
+<div class="donate-modal" id="donateModal">
+  <div class="donate-box">
+    <button class="donate-close" onclick="closeDonate()">✕</button>
+    <h2>💳 Donasi</h2>
+    <p class="donate-sub">Suport Admin Buat Beli Kopi</p>
+    <div class="donate-item">
+      <span>DANA A/N : DARMA SYAMSI</span>
+      <button onclick="copyText('081933732553')">Salin</button>
+    </div>
+    <div class="donate-item">
+      <span>BRI A/N : DARMA SYAMSI</span>
+      <button onclick="copyText('598601041348535')">Salin</button>
+    </div>
+    <div class="donate-item qris" onclick="openQRIS()">🧾 QRIS tersedia</div>
+  </div>
+</div>
+
+<div class="donate-modal" id="qrisModal">
+  <div class="donate-box" style="max-width:340px;text-align:center">
+    <button class="donate-close" onclick="closeQRIS()">✕</button>
+    <h2 style="margin-bottom:12px">🧾 QRIS</h2>
+    <img src="https://files.catbox.moe/yr1d87.jpg" 
+         style="width:100%;border-radius:12px;border:1px solid var(--b1)">
+    <p class="donate-sub" style="margin-top:10px">
+      Scan untuk donasi
+    </p>
   </div>
 </div>
 
@@ -1663,11 +1778,29 @@ function goHome() {
   window.scrollTo({ top: 0 });
 }
 
+function openDonate() {
+  closeAll();
+  document.getElementById('donateModal')?.classList.add('show');
+}
+function closeDonate() {
+  document.getElementById('donateModal')?.classList.remove('show');
+}
+function openQRIS() {
+  document.getElementById('qrisModal')?.classList.add('show');
+}
+function closeQRIS() {
+  document.getElementById('qrisModal')?.classList.remove('show');
+}
+document.getElementById('qrisModal')?.addEventListener('click', e => {
+  if (e.target.id === 'qrisModal') closeQRIS();
+});
+
 async function init() {
   const bind = (id, ev, fn) => document.getElementById(id)?.addEventListener(ev, fn);
   bind('mt-home','click',()=>goHome());
   bind('mt-cats','click',()=>mobGo('cats'));
   bind('mt-eps','click',()=>mobGo('eps'));
+  bind('mt-donate','click',()=>openDonate());
   bind('mt-report','click',()=>mobGo('report'));
   bind('mt-status','click',()=>mobGo('status'));
   bind('logoBtn','click',goHome);
@@ -1688,6 +1821,7 @@ async function init() {
     if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();document.getElementById('srchD')?.focus();}
     if(e.key==='Escape'){
       closeAll();
+      closeDonate();
       ['srchD','srchM'].forEach(id=>{const el2=document.getElementById(id);if(el2&&el2===document.activeElement){el2.value='';_doSearchNow('');el2.blur();}});
       if(window.innerWidth<=767)mobGo('home');
     }
