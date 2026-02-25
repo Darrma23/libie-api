@@ -1,0 +1,36 @@
+{
+  "name": "libie-api",
+  "version": "1.0.0",
+  "description": "REST API modular dengan auto plugin loading + frontend Tailwind CDN",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "NODE_ENV=production node server.js",
+    "dev": "nodemon server.js",
+    "build": "echo \"No build step required\""
+  },
+  "dependencies": {
+    "acrcloud": "^1.4.0",
+    "axios": "^1.13.5",
+    "cheerio": "^1.2.0",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "express-rate-limit": "^7.4.0",
+    "fast-xml-parser": "^5.3.6",
+    "form-data": "^4.0.0",
+    "morgan": "^1.10.0",
+    "qs": "^6.15.0",
+    "redis": "^5.11.0",
+    "uuid": "^13.0.0",
+    "zencf": "^2.0.3"
+  },
+  "imports": {
+    "#lib/*": "./lib/*"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

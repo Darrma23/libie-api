@@ -1,0 +1,493 @@
+const express = require('express');
+const path = require('path');
+const fs = require('fs');
+const cors = require('cors');
+const morgan = require('morgan');
+const rateLimit = require('express-rate-limit');
+const axios = require('axios');
+
+const { ipLimiter, getIP, LIMIT } = require('./lib/iplimiter');
+const redis = require('./lib/redis');
+const notifier = require('./lib/notifier');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.set('trust proxy', 1);
+app.set('json spaces', 2);
+
+const CREATOR = "Himejima";
+
+function clean(str) {
+  return String(str || '')
+    .replace(/[<>"']/g, '')
+    .trim();
+}
+
+/* ================= ROUTER ================= */
+
+let pluginRouter = express.Router();
+app.use(pluginRouter);
+
+/* ================= GLOBAL MIDDLEWARE ================= */
+
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: { status:false, message:'Terlalu banyak request' }
+});
+
+app.use('/', limiter);
+app.use(ipLimiter);
+
+app.use(morgan('dev'));
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended:true }));
+app.use(express.static(path.join(__dirname,'public')));
+
+/* ================= CREATOR INJECTION ================= */
+
+app.use((req, res, next) => {
+  const originalJson = res.json;
+
+  res.json = function (body) {
+    if (typeof body === 'object' && body !== null) {
+      body.creator = CREATOR;
+    }
+    return originalJson.call(this, body);
+  };
+
+  next();
+});
+
+/* ================= LOAD PLUGINS ================= */
+
+function loadPlugins() {
+  const pluginsDir = path.join(__dirname, 'plugins');
+  const apiList = [];
+  let registeredCount = 0;
+
+  pluginRouter.stack = [];
+
+  if (!fs.existsSync(pluginsDir)) {
+    console.log('⚠ Folder plugins tidak ditemukan.');
+    global.apiList = [];
+    return { count: 0, list: [] };
+  }
+
+  const categories = fs.readdirSync(pluginsDir).filter(file => {
+    const fullPath = path.join(pluginsDir, file);
+    return fs.statSync(fullPath).isDirectory();
+  });
+
+  categories.forEach(category => {
+    const categoryPath = path.join(pluginsDir, category);
+    const files = fs.readdirSync(categoryPath).filter(f => f.endsWith('.js'));
+
+    files.forEach(file => {
+      const filePath = path.join(categoryPath, file);
+
+      delete require.cache[require.resolve(filePath)];
+
+      let plugin;
+      try {
+        plugin = require(filePath);
+      } catch (err) {
+        console.error(`✖ Gagal load plugin ${file}:`, err.message);
+        return;
+      }
+
+      if (!plugin.name || !plugin.desc || !plugin.method || !plugin.path || typeof plugin.run !== 'function') {
+        console.error(`✖ Plugin ${file} tidak valid`);
+        return;
+      }
+
+      if (!plugin.category) {
+        plugin.category = category.charAt(0).toUpperCase() + category.slice(1);
+      }
+
+      const method = plugin.method.toLowerCase();
+
+      let fullPath = plugin.path.startsWith('/') ? plugin.path : '/' + plugin.path;
+      fullPath = `/${plugin.category.toLowerCase()}${fullPath}`.replace(/\/+/g, '/');
+
+      if (['get', 'post', 'put', 'delete', 'patch'].includes(method)) {
+
+        pluginRouter[method](fullPath, async (req, res) => {
+          try {
+            await plugin.run(req, res);
+          } catch (err) {
+            console.error(`🔥 Error di ${fullPath}:`, err.message);
+            res.status(500).json({
+              status: false,
+              message: err.message,
+              timestamp: new Date().toISOString()
+            });
+          }
+        });
+
+        console.log(`✔ ${method.toUpperCase()} ${fullPath}`);
+        registeredCount++;
+
+        const normalizedParams = Array.isArray(plugin.params)
+          ? plugin.params.map(p => {
+              if (typeof p === 'string') {
+                return {
+                  nama: p,
+                  tipe: 'query',
+                  required: true,
+                  dtype: 'string',
+                  desc: ''
+                };
+              }
+
+              return {
+                nama: p.name || 'unknown',
+                tipe: p.type || 'query',
+                required: p.required ?? true,
+                dtype: p.dtype || 'string',
+                desc: p.desc || ''
+              };
+            })
+          : [];
+
+        apiList.push({
+          nama: clean(plugin.name),
+          deskripsi: clean(plugin.desc),
+          kategori: clean(plugin.category),
+          method: clean(plugin.method.toUpperCase()),
+          endpoint: clean(fullPath),
+          parameter: normalizedParams,
+          contoh: clean(
+            typeof plugin.example === 'string'
+              ? plugin.example
+              : plugin.example?.url
+          )
+        });
+      }
+    });
+  });
+
+  global.apiList = apiList;
+
+  return { count: registeredCount, list: apiList };
+}
+
+/* ================= INIT ================= */
+
+let { count, list: apiList } = loadPlugins();
+
+/* ================= WATCHER ================= */
+
+let reloadTimer = null;
+
+fs.watch(path.join(__dirname, 'plugins'), { recursive: true }, (eventType, filename) => {
+  if (!filename || !filename.endsWith('.js')) return;
+
+  console.log(`🔄 Change detected: ${filename}`);
+
+  clearTimeout(reloadTimer);
+
+  reloadTimer = setTimeout(() => {
+    console.log('♻ Reloading plugins...');
+
+    const result = loadPlugins();
+    count = result.count;
+    apiList = result.list;
+
+    console.log(`🚀 Plugins reloaded. Total: ${count}\n`);
+  }, 300);
+});
+
+/* ================= API INFO ================= */
+
+app.get('/api/info', (req, res) => {
+  try {
+    res.status(200).json({
+      status: true,
+      server: "LIBIE API",
+      version: "1.0.0",
+      total_endpoints: apiList.length,
+      endpoint_categories: [...new Set(apiList.map(api => api.kategori))],
+      apis: apiList
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: false,
+      message: error.message
+    });
+  }
+});
+
+/* ================= HEALTH ================= */
+
+app.get('/api/health', (req, res) => {
+  res.status(200).json({
+    status: true,
+    message: 'Server healthy',
+    uptime: process.uptime(),
+    total_plugins: count,
+    timestamp: new Date().toISOString()
+  });
+});
+
+/* ================= PING ================= */
+
+app.get('/api/ping', (req, res) => {
+  res.status(200).json({
+    status: true,
+    message: 'pong',
+    timestamp: new Date().toISOString()
+  });
+});
+
+/* ================= STATUS IP ================= */
+
+app.get('/api/status/ip', async (req,res) => {
+  try {
+    const ip = getIP(req);
+    const key = `quota:${ip}`;
+
+    const requests = Number(await redis.get(key)) || 0;
+    const ttl = await redis.ttl(key);
+
+    res.json({
+     status: true,
+     creator: CREATOR,
+     ip,
+     requests,
+     remaining: Math.max(0, LIMIT - requests),
+     blocked: requests >= LIMIT,
+     reset_at: ttl > 0 ? new Date(Date.now() + ttl * 1000) : null,
+     endpoints_used: requests
+   });
+
+  } catch (err) {
+    console.error('Quota read error:', err.message);
+
+    res.status(500).json({
+      status:false,
+      message:'Gagal membaca quota'
+    });
+  }
+});
+
+/* ================= USER REPORT ================= */
+app.post('/api/user-report', async (req, res) => {
+  try {
+    const ip = getIP(req);
+    const { type, message, timestamp } = req.body;
+
+    if (!message || !message.trim()) {
+      return res.status(400).json({
+        status: false,
+        error: 'Pesan laporan kosong'
+      });
+    }
+
+    const cleanType = clean(type || 'other');
+    const cleanMsg  = clean(message);
+    const time = timestamp || new Date().toISOString();
+
+    const key = `report:${Date.now()}`;
+
+    await redis.hSet(key, {
+      ip,
+      type: cleanType,
+      message: cleanMsg,
+      timestamp: time
+    });
+
+    await redis.expire(key, 60 * 60 * 24 * 7);
+
+    await redis.publish("reports", JSON.stringify({
+     ip,
+     type: cleanType,
+     message: cleanMsg,
+     timestamp: time
+   }));
+
+    console.log(`📩 REPORT ${cleanType.toUpperCase()} dari ${ip}`);
+
+    const text =
+      `🚨 REPORT BARU\n\n` +
+      `🧩 Type : ${cleanType}\n` +
+      `🌐 IP   : ${ip}\n` +
+      `⏱ Time : ${time}\n\n` +
+      `💬 Pesan:\n${cleanMsg}`;
+
+    // 🔔 Forward ke bot
+    await axios.post(
+      'http://127.0.0.1:3001/notify/report',
+      { text },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'x-secret': 'libie'
+        },
+        timeout: 5000
+      }
+    );
+
+    res.json({
+      status: true,
+      message: 'Laporan diterima'
+    });
+
+  } catch (err) {
+    console.error('🔥 Report error:', err.message);
+
+    res.status(500).json({
+      status: false,
+      error: err.message
+    });
+  }
+});
+
+/* ================= STATUS API ================= */
+app.get('/api/stats', async (req, res) => {
+  try {
+    const totalReports = (await redis.keys('report:*')).length;
+    const totalQuota   = (await redis.keys('quota:*')).length;
+
+    res.json({
+      status: true,
+      reports: totalReports,
+      active_users: totalQuota,
+      memory: (process.memoryUsage().rss / 1024 / 1024).toFixed(2) + ' MB',
+      uptime: process.uptime().toFixed(0) + 's'
+    });
+
+  } catch (err) {
+    res.status(500).json({
+      status: false,
+      error: err.message
+    });
+  }
+});
+
+/* ================= RUN NOTIFY ================= */
+app.post('/api/run-notify', async (req, res) => {
+  try {
+    const { endpoint, method, status, ms, url } = req.body;
+    const ip = getIP(req);
+
+    console.log(`🧪 TRY ${method} ${endpoint} → ${status} (${ms}ms) dari ${ip}`);
+
+    res.json({ status: true });
+
+  } catch (err) {
+    console.error('Run notify error:', err.message);
+    res.status(500).json({ status:false });
+  }
+});
+
+/* ================= FRONTEND ================= */
+
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+/* ================= REPORTS VIEWER ================= */
+
+app.get('/api/reports', async (req, res) => {
+  try {
+    const keys = await redis.keys('report:*');
+
+    if (!keys.length) {
+      return res.json({
+        status: true,
+        total: 0,
+        reports: []
+      });
+    }
+
+    const reports = [];
+
+    for (const key of keys.sort().reverse()) {
+      const data = await redis.hGetAll(key);
+
+      reports.push({
+        id: key,
+        ...data
+      });
+    }
+
+    res.json({
+      status: true,
+      total: reports.length,
+      reports
+    });
+
+  } catch (err) {
+    console.error('🔥 Reports viewer error:', err.message);
+
+    res.status(500).json({
+      status: false,
+      error: err.message
+    });
+  }
+});
+
+/* ================= 404 HANDLER ================= */
+
+app.use((req, res) => {
+  const acceptsHTML = req.headers.accept?.includes('text/html');
+
+  if (acceptsHTML) {
+    return res.status(404).sendFile(
+      path.join(__dirname, 'public', '404.html')
+    );
+  }
+
+  res.status(404).json({
+    status: false,
+    message: 'Endpoint tidak ditemukan',
+    requested_url: req.originalUrl,
+    method: req.method,
+    available_endpoints: '/api/info'
+  });
+});
+
+/* ================= ERROR HANDLER ================= */
+
+app.use((err, req, res, next) => {
+  console.error('🔥 Global Error:', err.stack);
+
+  res.status(500).json({
+    status: false,
+    message: err.message,
+    timestamp: new Date().toISOString()
+  });
+});
+
+/* ================= START ================= */
+
+app.listen(PORT, "0.0.0.0", async () => {
+  console.log('\n==============================');
+  console.log('🚀 LIBIE API STARTED');
+  console.log('==============================');
+
+  console.log(`🌐 URL          : http://localhost:${PORT}`);
+  console.log(`📚 Docs UI      : http://localhost:${PORT}`);
+  console.log(`🔍 API Info     : http://localhost:${PORT}/api/info`);
+  console.log(`🏓 Ping         : http://localhost:${PORT}/api/ping`);
+
+  console.log('------------------------------');
+  console.log(`📊 Total Plugin : ${count}`);
+  console.log(`🧩 Categories   : ${[...new Set(apiList.map(a => a.kategori))].join(', ')}`);
+
+  try {
+    const pong = await redis.ping();
+    console.log(`🟥 Redis        : ${pong}`);
+  } catch (err) {
+    console.log(`🟥 Redis        : OFFLINE (${err.message})`);
+  }
+
+  console.log('------------------------------');
+  console.log(`⚙️  Mode        : ${process.env.NODE_ENV || 'development'}`);
+  console.log(`⏱ Uptime       : ${process.uptime().toFixed(2)}s`);
+  console.log(`🧠 Memory       : ${(process.memoryUsage().rss / 1024 / 1024).toFixed(2)} MB`);
+  console.log('==============================\n');
+});
