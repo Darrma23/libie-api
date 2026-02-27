@@ -3,7 +3,7 @@ const axios = require("axios");
 module.exports = {
   name: "Tri Check",
   desc: "Cek status SIM Card TRI",
-  category: "Tools",
+  category: "Info",
   method: "GET",
   path: "/cektri",
 
@@ -98,6 +98,7 @@ module.exports = {
 
       res.json({
         status: true,
+        creator: "Himejima",
         data: {
           msisdn: data.msisdn,
           iccid: data.iccid,

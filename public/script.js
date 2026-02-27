@@ -483,7 +483,7 @@ function buildDetail(ep) {
   if((ep.bodyParams||[]).length)frag.appendChild(mkParamTbl('Request Body',ep.bodyParams,false));
   if(ep.example?.response){const sec=mkSection('Contoh Response');sec.appendChild(mkCodeBlock('200 OK',JSON.stringify(ep.example.response,null,2),true));frag.appendChild(sec);}
   const ts=mkSection('Coba Langsung');ts.appendChild(mkTryPanel(ep,uid));frag.appendChild(ts);
-  frag.appendChild(mkCurlSection(ep));
+  frag.appendChild(mkCurlSection(ep, uid));
   frag.appendChild(mkCodeExSection(ep,uid));
   if((ep.responses||[]).length){
     const sec=mkSection('HTTP Status'); const codes=el('div','codes');
@@ -558,43 +558,124 @@ function mkTryPanel(ep, uid) {
 }
 
 function mkField(p, ep, uid) {
-  const wrap=el('div','tf'); const lab=el('label');
+  const wrap = el('div','tf');
+  const lab  = el('label');
   lab.appendChild(document.createTextNode(p.name+' '));
   lab.appendChild(el('span',p.required?'req':'opt',p.required?'*wajib':'opsional'));
   lab.appendChild(document.createTextNode(' '));
   lab.appendChild(el('span','tbg',p.type==='query'?'query':'path'));
-  let defVal='';
-  try{const m=(ep.example?.url||'').match(new RegExp('[?&]'+p.name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'=([^&]*)'));if(m)defVal=decodeURIComponent(m[1]);}catch{}
-  const inp=el('input'); inp.id='fi-'+uid+'-'+p.name; inp.type='text'; inp.placeholder=(p.dtype||'string')+'...';
-  inp.value=defVal; inp.autocomplete='off'; inp.spellcheck=false;
+  let exampleVal = '';
+  try {
+    const m = (ep.example?.url || '').match(
+      new RegExp('[?&]' + p.name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + '=([^&]*)')
+    );
+    if (m) exampleVal = decodeURIComponent(m[1]);
+  } catch {}
+  const inp = el('input');
+  inp.id = 'fi-'+uid+'-'+p.name;
+  inp.type = 'text';
+  inp.value = '';
+  inp.placeholder = exampleVal || (p.dtype || 'string') + '...';
+  inp.autocomplete='off';
+  inp.spellcheck=false;
+  inp.addEventListener('input', () => updateRealtimeCurl(ep, uid));
   wrap.append(lab,inp);
-  if(p.desc){const hint=el('div','hint');hint.textContent='// '+p.desc;wrap.appendChild(hint);}
+  if(p.desc){
+    const hint=el('div','hint');
+    hint.textContent='// '+p.desc;
+    wrap.appendChild(hint);
+  }
   return wrap;
 }
 
 function mkBodyField(ep, uid) {
-  const wrap=el('div','tf'); const lab=el('label');
+  const wrap = el('div','tf');
+  const lab  = el('label');
+
   lab.appendChild(document.createTextNode('Request Body '));
   lab.appendChild(el('span','req','*'));
   lab.appendChild(document.createTextNode(' '));
   lab.appendChild(el('span','tbg','JSON'));
-  let ex=''; if(ep.example?.body){try{ex=JSON.stringify(ep.example.body,null,2);}catch{}}
-  const ta=el('textarea'); ta.id='fi-'+uid+'-body'; ta.spellcheck=false; ta.textContent=ex;
-  const hint=el('div','hint'); hint.textContent='// Body JSON raw';
-  wrap.append(lab,ta,hint); return wrap;
+
+  let exampleBody = '';
+  if (ep.example?.body) {
+    try {
+      exampleBody = JSON.stringify(ep.example.body, null, 2);
+    } catch {}
+  }
+  const ta = el('textarea');
+  ta.id = 'fi-'+uid+'-body';
+  ta.spellcheck = false;
+  ta.value = '';
+  ta.placeholder = exampleBody || '{\n  "key": "value"\n}';
+  ta.addEventListener('input', () => updateRealtimeCurl(ep, uid));
+  const hint = el('div','hint');
+  hint.textContent='// Body JSON raw';
+  wrap.append(lab, ta, hint);
+  return wrap;
 }
 
-function mkCurlSection(ep) {
-  const url=location.origin+(ep.example?.url||ep.path);
-  const body=(ep.bodyParams||[]).length?(ep.example?.body?JSON.stringify(ep.example.body):'{}'):null;
-  const raw=`curl -X ${ep.method} "${url}" -H "Content-Type: application/json"`+(body?` -d '${body}'`:'');
-  const sec=mkSection('cURL'); const blk=el('div','cblk'); const bar=el('div','cblk-bar');
-  const lbl=el('span','cblk-lbl','>_ Command');
-  const cpb=el('button','cpbtn','Copy'); cpb.type='button';
-  cpb.addEventListener('click',()=>copyText(raw,cpb));
-  bar.append(lbl,cpb);
-  const body2=el('div','cblk-body'); const pre=el('pre'); pre.innerHTML=hlCurl(raw);
-  body2.appendChild(pre); blk.append(bar,body2); sec.appendChild(blk); return sec;
+function buildRealtimeCurl(ep, uid) {
+  let baseUrl = location.origin + (ep.example?.url || ep.path);
+  let url = baseUrl;
+  let qp = [];
+  let hasUserInput = false;
+  for (const p of (ep.params || [])) {
+    const inp = document.getElementById('fi-'+uid+'-'+p.name);
+    if (!inp) continue;
+    const val = inp.value.trim();
+    if (val) {
+      hasUserInput = true;
+      if (p.type === 'query') {
+        qp.push(encodeURIComponent(p.name)+'='+encodeURIComponent(val));
+      } else {
+        url = url.replace(':'+p.name, encodeURIComponent(val));
+      }
+    }
+  }
+  if (hasUserInput) {
+    url = location.origin + ep.path;
+    if (qp.length) url += '?' + qp.join('&');
+  }
+  let raw = `curl -X ${ep.method} "${url}" -H "Content-Type: application/json"`;
+  const bodyEl = document.getElementById('fi-'+uid+'-body');
+  let bodyVal = bodyEl?.value?.trim();
+  if (!bodyVal && ep.example?.body) {
+    bodyVal = JSON.stringify(ep.example.body);
+  }
+  if (bodyVal) {
+    raw += ` -d '${bodyVal.replace(/'/g,"\\'")}'`;
+  }
+  return raw;
+}
+
+function updateRealtimeCurl(ep, uid) {
+  const pre = document.getElementById('curl-'+uid);
+  if (!pre) return;
+  const raw = buildRealtimeCurl(ep, uid);
+  pre.innerHTML = hlCurl(raw);
+}
+
+function mkCurlSection(ep, uid) {
+  const sec = mkSection('cURL');
+  const blk = el('div','cblk');
+  const bar = el('div','cblk-bar');
+  const lbl = el('span','cblk-lbl','>_ Command');
+  const cpb = el('button','cpbtn','Copy');
+  cpb.type = 'button';
+  cpb.addEventListener('click', () => {
+    const raw = buildRealtimeCurl(ep, uid);
+    copyText(raw, cpb);
+  });
+  bar.append(lbl, cpb);
+  const body = el('div','cblk-body');
+  const pre = el('pre');
+  pre.id = 'curl-'+uid;
+  body.appendChild(pre);
+  blk.append(bar, body);
+  sec.appendChild(blk);
+  updateRealtimeCurl(ep, uid);
+  return sec;
 }
 
 function mkCodeExSection(ep, uid) {

@@ -4,11 +4,9 @@ const fs = require('fs');
 const cors = require('cors');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
-const axios = require('axios');
 
 const { ipLimiter, getIP, LIMIT } = require('./lib/iplimiter');
 const redis = require('./lib/redis');
-const notifier = require('./lib/notifier');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -293,47 +291,27 @@ app.post('/api/user-report', async (req, res) => {
     const key = `report:${Date.now()}`;
 
     await redis.hSet(key, {
-      ip,
-      type: cleanType,
-      message: cleanMsg,
-      timestamp: time
-    });
-
-    await redis.expire(key, 60 * 60 * 24 * 7);
-
-    await redis.publish("reports", JSON.stringify({
+     ip,
+     type: cleanType,
+     message: cleanMsg,
+     timestamp: time
+   });
+   
+   await redis.expire(key, 60 * 60 * 24 * 7);
+   
+   await redis.publish("reports", JSON.stringify({
      ip,
      type: cleanType,
      message: cleanMsg,
      timestamp: time
    }));
-
-    console.log(`📩 REPORT ${cleanType.toUpperCase()} dari ${ip}`);
-
-    const text =
-      `🚨 REPORT BARU\n\n` +
-      `🧩 Type : ${cleanType}\n` +
-      `🌐 IP   : ${ip}\n` +
-      `⏱ Time : ${time}\n\n` +
-      `💬 Pesan:\n${cleanMsg}`;
-
-    // 🔔 Forward ke bot
-    await axios.post(
-      'http://127.0.0.1:3001/notify/report',
-      { text },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'x-secret': 'libie'
-        },
-        timeout: 5000
-      }
-    );
-
-    res.json({
-      status: true,
-      message: 'Laporan diterima'
-    });
+   
+   console.log(`📩 REPORT ${cleanType.toUpperCase()} dari ${ip}`);
+   
+   res.json({
+     status: true,
+     message: 'Laporan diterima'
+   });
 
   } catch (err) {
     console.error('🔥 Report error:', err.message);
@@ -387,47 +365,6 @@ app.post('/api/run-notify', async (req, res) => {
 
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-/* ================= REPORTS VIEWER ================= */
-
-app.get('/api/reports', async (req, res) => {
-  try {
-    const keys = await redis.keys('report:*');
-
-    if (!keys.length) {
-      return res.json({
-        status: true,
-        total: 0,
-        reports: []
-      });
-    }
-
-    const reports = [];
-
-    for (const key of keys.sort().reverse()) {
-      const data = await redis.hGetAll(key);
-
-      reports.push({
-        id: key,
-        ...data
-      });
-    }
-
-    res.json({
-      status: true,
-      total: reports.length,
-      reports
-    });
-
-  } catch (err) {
-    console.error('🔥 Reports viewer error:', err.message);
-
-    res.status(500).json({
-      status: false,
-      error: err.message
-    });
-  }
 });
 
 /* ================= 404 HANDLER ================= */

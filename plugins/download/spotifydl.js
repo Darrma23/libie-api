@@ -1,155 +1,146 @@
-const axios = require('axios')
-const { zencf } = require('zencf')
+// plugins/Downloader/spotify.js
+const axios = require("axios");
+const { Buffer } = require("buffer");
 
-const UA = 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Mobile Safari/537.36'
-
-let cookieHeaders = {
-  'user-agent': UA,
-  'content-type': 'application/json',
-  origin: 'https://spotidownloader.com',
-  referer: 'https://spotidownloader.com/'
+function msToTime(ms) {
+  const m = Math.floor(ms / 60000);
+  const s = Math.floor((ms % 60000) / 1000);
+  return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-async function gettoken() {
-  const { token } = await zencf.turnstileMin(
-    'https://spotidownloader.com/en13',
-    '0x4AAAAAAA8QAiFfE5GuBRRS'
-  )
-
-  const r = await axios.post(
-    'https://api.spotidownloader.com/session',
-    { token },
-    { headers: cookieHeaders }
-  )
-
-  if (!r.data?.token) throw new Error('Gagal ambil bearer token')
-
-  return r.data.token
-}
-
-async function searchspotify(query, bearer) {
-  const r = await axios.post(
-    'https://api.spotidownloader.com/search',
-    { query },
+async function getAccessToken() {
+  const res = await axios.post(
+    "https://accounts.spotify.com/api/token",
+    "grant_type=client_credentials",
     {
       headers: {
-        ...cookieHeaders,
-        authorization: `Bearer ${bearer}`
-      }
+        "Content-Type": "application/x-www-form-urlencoded",
+        Authorization:
+          "Basic " +
+          Buffer.from(
+            "7bbae52593da45c69a27c853cc22edff:88ae1f7587384f3f83f62a279e7f87af"
+          ).toString("base64"),
+      },
+      timeout: 15000,
     }
-  )
+  );
 
-  return r.data
+  if (!res.data?.access_token)
+    throw new Error("Gagal generate token Spotify");
+
+  return res.data.access_token;
 }
 
-async function dlspotify(id, bearer) {
-  const r = await axios.post(
-    'https://api.spotidownloader.com/download',
-    { id },
-    {
-      headers: {
-        ...cookieHeaders,
-        authorization: `Bearer ${bearer}`
-      }
-    }
-  )
+async function searchSpotify(query) {
+  const token = await getAccessToken();
 
-  if (!r.data?.link) throw new Error('Link download tidak ditemukan')
+  const res = await axios.get("https://api.spotify.com/v1/search", {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    params: {
+      q: query,
+      type: "track",
+      limit: 1,
+      market: "ID",
+    },
+    timeout: 15000,
+  });
 
-  return r.data.link
+  const item = res.data.tracks?.items?.[0];
+  if (!item) throw new Error("Lagu tidak ditemukan");
+
+  return {
+    title: item.name,
+    artist: item.artists?.map(a => a.name).join(", "),
+    duration_ms: item.duration_ms,
+    cover: item.album?.images?.[0]?.url,
+    url: item.external_urls?.spotify,
+  };
+}
+
+async function getDownloadInfo(spotifyUrl) {
+  const headers = {
+    "content-type": "application/json",
+    origin: "https://sssspotify.com",
+    referer: "https://sssspotify.com/",
+    "user-agent": "Mozilla/5.0",
+  };
+
+  const res = await axios.post(
+    "https://sssspotify.com/api/download/get-url",
+    { url: spotifyUrl },
+    { headers, timeout: 20000 }
+  );
+
+  if (res.data?.code !== 200 || !res.data.originalVideoUrl)
+    throw new Error("Gagal mendapatkan URL download");
+
+  const encodedPart = res.data.originalVideoUrl.replace(
+    "/api/download/dl?url=",
+    ""
+  );
+
+  return {
+    title: res.data.title,
+    artist: res.data.authorName,
+    cover: res.data.coverUrl,
+    download: `https://sssspotify.com/api/download/dl?url=${encodedPart}`,
+  };
 }
 
 module.exports = {
   name: "Spotify Downloader",
-  desc: "Search atau download lagu dari Spotify via SpotiDownloader",
+  desc: "Search dan ambil link MP3 dari Spotify",
   category: "Downloader",
   method: "GET",
   path: "/spotify",
-
   params: [
-    {
-      name: "query",
-      type: "query",
-      required: true,
-      dtype: "string",
-      desc: "Link Spotify / ID track / kata kunci pencarian"
-    }
+    { name: "q", type: "query", required: false, desc: "Judul lagu" },
+    { name: "url", type: "query", required: false, desc: "URL track Spotify" },
   ],
+  example: "/downloader/spotify?q=alan walker faded",
 
-  example: "/downloader/spotify?query=night+changes",
-
-  run: async (req, res) => {
+  async run(req, res) {
     try {
-      const { query } = req.query
+      const { q, url } = req.query;
 
-      if (!query) {
+      if (!q && !url)
         return res.status(400).json({
           status: false,
-          message: "Parameter query wajib diisi"
-        })
+          message: "Parameter q atau url wajib diisi",
+        });
+
+      let track;
+
+      if (q) {
+        track = await searchSpotify(q);
+      } else {
+        track = { url };
       }
 
-      const bearer = await gettoken()
+      const downloadInfo = await getDownloadInfo(track.url);
 
-      // 🎯 Kalau link track
-      if (/spotify\.com\/track\//i.test(query)) {
-        const id = query.split('/track/')[1].split('?')[0]
-        const link = await dlspotify(id, bearer)
-
-        return res.json({
-          status: true,
-          creator: "himejima",
-          data: {
-            type: "download",
-            id,
-            link
-          },
-          metadata: {
-            timestamp: new Date().toISOString()
-          }
-        })
-      }
-
-      // 🎯 Kalau ID langsung
-      if (/^[a-zA-Z0-9]{22}$/.test(query)) {
-        const link = await dlspotify(query, bearer)
-
-        return res.json({
-          status: true,
-          data: {
-            type: "download",
-            id: query,
-            link
-          },
-          metadata: {
-            timestamp: new Date().toISOString()
-          }
-        })
-      }
-
-      // 🔎 Kalau search
-      const results = await searchspotify(query, bearer)
-
-      res.json({
+      return res.json({
         status: true,
-        data: {
-          type: "search",
-          query,
-          results
+        creator: "Himejima",
+        result: {
+          title: downloadInfo.title || track.title,
+          artist: downloadInfo.artist || track.artist,
+          duration: track.duration_ms
+            ? msToTime(track.duration_ms)
+            : null,
+          cover: downloadInfo.cover || track.cover,
+          source: track.url,
+          download: downloadInfo.download,
         },
-        metadata: {
-          timestamp: new Date().toISOString()
-        }
-      })
+      });
 
     } catch (err) {
-      console.error("SPOTIFY ERROR:", err.message)
-
-      res.status(500).json({
+      return res.status(500).json({
         status: false,
         message: err.message,
-        timestamp: new Date().toISOString()
-      })
+      });
     }
-  }
-}
+  },
+};
