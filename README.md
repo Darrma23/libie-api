@@ -2,22 +2,22 @@
 
 <img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&height=200&section=header&text=Libie%20REST%20API&fontSize=70&fontAlignY=35&animation=twinkling&fontColor=ffffff&desc=Scalable%20Plugin-Based%20Backend%20Framework&descAlignY=55&descSize=18" width="100%" />
 
-<div align="center">
-
 <br/>
 
 <img src="https://files.catbox.moe/zhwjz9.jpeg" width="100%" alt="Libie Logo" />
+
+<br/>
 
 # 🚀 Libie REST API
 
 **Scalable Modular REST API Framework built with Express.js**
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Node.js-18+-green?style=for-the-badge&logo=node.js" />
-  <img src="https://img.shields.io/badge/Express.js-Framework-black?style=for-the-badge&logo=express" />
-  <img src="https://img.shields.io/badge/Redis-Caching-red?style=for-the-badge&logo=redis" />
-  <img src="https://img.shields.io/badge/Architecture-Plugin--Based-blue?style=for-the-badge" />
-</p>
+<br/>
+
+<img src="https://img.shields.io/badge/Node.js-18+-green?style=flat-square&logo=node.js" />
+<img src="https://img.shields.io/badge/Express.js-Framework-black?style=flat-square&logo=express" />
+<img src="https://img.shields.io/badge/Redis-Caching-red?style=flat-square&logo=redis" />
+<img src="https://img.shields.io/badge/Architecture-Plugin--Based-blue?style=flat-square" />
 
 </div>
 
