@@ -20,7 +20,7 @@ function catPalette(name) {
 function catAbbr(name) {
   const abbrs = {
     Downloader:'DL', Tools:'TL', Random:'RN', Information:'IN', Games:'GM',
-    Admin:'AD', Search:'SR', Threads:'TH', Instagram:'IG', TikTok:'TK',
+    Admin:'AD', Search:'SR', Maker:'MK', Threads:'TH', Instagram:'IG', TikTok:'TK',
     Music:'MU', Image:'IM', AI:'AI', Social:'SO', Media:'MD', News:'NW',
     Weather:'WT', Finance:'FI',
   };
@@ -485,11 +485,16 @@ function buildDetail(ep) {
   const hDesc=el('div','hero-desc'); hDesc.textContent=ep.description||'-';
   hero.append(hTop,hDesc); frag.appendChild(hero);
 
-  const qp=(ep.params||[]).filter(p=>p.type==='query');
-  const pp=(ep.params||[]).filter(p=>p.type!=='query');
-  if(pp.length)frag.appendChild(mkParamTbl('Path Params',pp,true));
-  if(qp.length)frag.appendChild(mkParamTbl('Query Params',qp,true));
-  if((ep.bodyParams||[]).length)frag.appendChild(mkParamTbl('Request Body',ep.bodyParams,false));
+  const pathParams  = (ep.params || []).filter(p => p.type === 'path');
+  const queryParams = (ep.params || []).filter(p => p.type === 'query');
+  const bodyParams  = (ep.params || []).filter(p => p.type === 'body');
+  if (pathParams.length)
+     frag.appendChild(mkParamTbl('Path Params', pathParams, true));
+   if (queryParams.length)
+     frag.appendChild(mkParamTbl('Query Params', queryParams, true));
+   if (bodyParams.length)
+  frag.appendChild(mkParamTbl('Request Body', bodyParams, false));
+  // if((ep.bodyParams||[]).length)frag.appendChild(mkParamTbl('Request Body',ep.bodyParams,false));
   if(ep.example?.response){const sec=mkSection('Contoh Response');sec.appendChild(mkCodeBlock('200 OK',JSON.stringify(ep.example.response,null,2),true));frag.appendChild(sec);}
   const ts=mkSection('Coba Langsung');ts.appendChild(mkTryPanel(ep,uid));frag.appendChild(ts);
   frag.appendChild(mkCurlSection(ep, uid));
@@ -572,7 +577,11 @@ function mkField(p, ep, uid) {
   lab.appendChild(document.createTextNode(p.name+' '));
   lab.appendChild(el('span',p.required?'req':'opt',p.required?'*wajib':'opsional'));
   lab.appendChild(document.createTextNode(' '));
-  lab.appendChild(el('span','tbg',p.type==='query'?'query':'path'));
+  let badgeType = 'path';
+   if (p.type === 'query') badgeType = 'query';
+   if (p.type === 'body')  badgeType = 'body';
+   
+  lab.appendChild(el('span','tbg', badgeType));
   let exampleVal = '';
   try {
     const m = (ep.example?.url || '').match(
@@ -580,6 +589,41 @@ function mkField(p, ep, uid) {
     );
     if (m) exampleVal = decodeURIComponent(m[1]);
   } catch {}
+  /* ================= SELECT ================= */
+  if (p.dtype === 'select' && Array.isArray(p.options)) {
+    const sel = el('select');
+    sel.id = 'fi-'+uid+'-'+p.name;
+    p.options.forEach(opt => {
+      const o = el('option');
+      o.value = opt.value;
+      o.textContent = opt.label;
+      sel.appendChild(o);
+    });
+    sel.value = p.options[0]?.value || '';
+    sel.addEventListener('change', () => updateRealtimeCurl(ep, uid));
+    wrap.append(lab, sel);
+    if (p.desc) {
+      const hint = el('div','hint');
+      hint.textContent = '// ' + p.desc;
+      wrap.appendChild(hint);
+    }
+    return wrap;
+  }
+  /* ================= FILE ================= */
+  if (p.dtype === 'file') {
+    const inp = el('input');
+    inp.type = 'file';
+    inp.id = 'fi-'+uid+'-'+p.name;
+    inp.addEventListener('change', () => updateRealtimeCurl(ep, uid));
+    wrap.append(lab, inp);
+    if (p.desc) {
+      const hint = el('div','hint');
+      hint.textContent = '// ' + p.desc;
+      wrap.appendChild(hint);
+    }
+    return wrap;
+  }
+  /* ================= TEXT (DEFAULT) ================= */
   const inp = el('input');
   inp.id = 'fi-'+uid+'-'+p.name;
   inp.type = 'text';
@@ -588,24 +632,21 @@ function mkField(p, ep, uid) {
   inp.autocomplete='off';
   inp.spellcheck=false;
   inp.addEventListener('input', () => updateRealtimeCurl(ep, uid));
-  wrap.append(lab,inp);
-  if(p.desc){
-    const hint=el('div','hint');
-    hint.textContent='// '+p.desc;
+  wrap.append(lab, inp);
+  if (p.desc) {
+    const hint = el('div','hint');
+    hint.textContent = '// ' + p.desc;
     wrap.appendChild(hint);
   }
   return wrap;
 }
-
 function mkBodyField(ep, uid) {
   const wrap = el('div','tf');
   const lab  = el('label');
-
   lab.appendChild(document.createTextNode('Request Body '));
   lab.appendChild(el('span','req','*'));
   lab.appendChild(document.createTextNode(' '));
   lab.appendChild(el('span','tbg','JSON'));
-
   let exampleBody = '';
   if (ep.example?.body) {
     try {
@@ -726,7 +767,7 @@ async function runEp(uid) {
   if(rcode)rcode.innerHTML='';
 
   let url=location.origin+ep.path, qp=[], hasErr=false;
-  for(const p of(ep.params||[])){
+  for (const p of (ep.params || []).filter(p => p.type !== 'body')) {
     const inp=document.getElementById('fi-'+uid+'-'+p.name); if(!inp)continue;
     inp.classList.remove('err'); const val=inp.value.trim();
     if(!val&&p.required){inp.classList.add('err');toast('"'+p.name+'" wajib diisi','err-t');inp.focus();hasErr=true;break;}
@@ -735,11 +776,57 @@ async function runEp(uid) {
   if(hasErr)return;
   if(qp.length)url+='?'+qp.join('&');
 
-  const opts={method:ep.method,headers:{'Content-Type':'application/json','Accept':'application/json'}};
-  if((ep.bodyParams||[]).length){
-    const bEl=document.getElementById('fi-'+uid+'-body');
-    if(bEl){const bval=bEl.value.trim()||'{}';try{JSON.parse(bval);opts.body=bval;bEl.classList.remove('err');}catch{bEl.classList.add('err');toast('Body JSON tidak valid','err-t');return;}}
+  let hasFile = false;
+   for (const p of (ep.params || [])) {
+     if (p.dtype === 'file') {
+       hasFile = true;
+       break;
+     }
+   }
+   let opts;
+   if (hasFile) {
+     const form = new FormData();
+     for (const p of (ep.params || [])) {
+       const inp = document.getElementById('fi-'+uid+'-'+p.name);
+       if (!inp) continue;
+       if (p.dtype === 'file') {
+         if (inp.files[0]) {
+           form.append(p.name, inp.files[0]);
+         }
+       } else {
+         const val = inp.value.trim();
+         if (val) form.append(p.name, val);
+       }
+     }
+     opts = {
+       method: ep.method,
+       body: form
+     };
+   } else {
+  opts = {
+    method: ep.method,
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    }
+  };
+  const bodyParams = (ep.params || []).filter(p => p.type === 'body');
+  if (bodyParams.length && ['POST','PUT','PATCH','DELETE'].includes(ep.method)) {
+   const bodyObj = {};
+    for (const p of bodyParams) {
+      const inp = document.getElementById('fi-'+uid+'-'+p.name);
+      if (!inp) continue;
+      const val = inp.value.trim();
+      if (!val && p.required) {
+        inp.classList.add('err');
+        toast('"'+p.name+'" wajib diisi','err-t');
+        return;
+      }
+      if (val) bodyObj[p.name] = val;
+    }
+    opts.body = JSON.stringify(bodyObj);
   }
+}
 
   if(btnEl){btnEl.disabled=true;btnEl.className='run-btn loading';btnEl.innerHTML='<span class="run-spinner"></span> Mengirim...';}
   if(pgbar){pgbar.style.transition='none';pgbar.style.width='0%';requestAnimationFrame(()=>{pgbar.style.transition='width 13s linear';pgbar.style.width='88%';});}
@@ -842,6 +929,24 @@ function fallbackCopy(txt,cb){
   document.body.appendChild(ta);ta.focus();ta.select();
   try{document.execCommand('copy');cb();}catch{}
   document.body.removeChild(ta);
+}
+
+/* =========================
+   AUTO CYBER AMBIENCE
+========================= */
+
+const bgMusic = document.getElementById("bgMusic");
+
+if (bgMusic) {
+  bgMusic.volume = 1; // halus. subtle. jangan lebay.
+
+  // Setelah halaman fully loaded, unmute & play
+  window.addEventListener("load", () => {
+    bgMusic.muted = false;
+    bgMusic.play().catch(() => {
+      // kalau tetap diblok, ya nasib
+    });
+  });
 }
 
 init();

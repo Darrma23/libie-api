@@ -1,3 +1,4 @@
+require('dotenv').config();
 const pkg = require('./package.json');
 const express = require('express');
 const path = require('path');
@@ -10,6 +11,7 @@ const { execSync } = require('child_process');
 
 const { ipLimiter, getIP, LIMIT } = require('./lib/iplimiter');
 const redis = require('./lib/redis');
+const { generateUploadUrl } = require('./lib/storage');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -26,11 +28,28 @@ function clean(str) {
 }
 
 const CATEGORY_PREFIX = {
-  downloader: '/download',
-  anime: '/anime',
-  ai: '/ai',
-  tools: '/tools',
-  info: '/info'
+  downloader: "/download",
+  tools: "/tools",
+  random: "/random",
+  information: "/information",
+  games: "/games",
+  admin: "/admin",
+  search: "/search",
+  maker: "/maker",
+  threads: "/threads",
+  instagram: "/instagram",
+  tiktok: "/tiktok",
+  music: "/music",
+  image: "/image",
+  ai: "/ai",
+  social: "/social",
+  media: "/media",
+  news: "/news",
+  weather: "/weather",
+  finance: "/finance",
+  anime: "/anime",
+  internet: "/internet",
+  storage: "/storage"
 };
 
 function resolvePrefix(category) {
@@ -61,13 +80,25 @@ app.use('/api', async (req, res, next) => {
   next();
 });
 app.use(ipLimiter);
-app.use('/api', pluginRouter);
 
 app.use(morgan('dev'));
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended:true }));
 app.use(express.static(path.join(__dirname,'public')));
+
+const fileUpload = require("express-fileupload");
+
+app.use(fileUpload({
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  abortOnLimit: true,
+  responseOnLimit: {
+    status: false,
+    message: "File terlalu besar (max 10MB)"
+  }
+}));
+
+app.use('/api', pluginRouter);
 
 /* ================= CREATOR INJECTION ================= */
 
@@ -146,15 +177,14 @@ function loadPlugins() {
       registeredCount++;
 
       const normalizedParams = Array.isArray(plugin.params)
-        ? plugin.params.map(p => {
-            return {
-              nama: p.nama || p.name || '',
-              tipe: p.tipe || p.type || 'query',
-              required: p.required ?? true,
-              dtype: p.dtype || 'string',
-              desc: p.desc || ''
-            };
-          })
+        ? plugin.params.map(p => ({
+            nama: p.nama || p.name || '',
+            tipe: p.tipe || p.type || 'query',
+            required: p.required ?? true,
+            dtype: p.dtype || 'string',
+            desc: p.desc || '',
+            options: p.options || []
+          }))
         : [];
       
       apiList.push({
@@ -438,6 +468,25 @@ app.get('/', (req, res) => {
 
 app.get('/server', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'server.html'));
+});
+
+app.post('/api/storage/get-upload-url', async (req, res) => {
+  try {
+    const { contentType } = req.body;
+
+    const result = await generateUploadUrl(contentType);
+
+    res.json({
+      status: true,
+      ...result
+    });
+
+  } catch (err) {
+    res.status(500).json({
+      status: false,
+      message: err.message
+    });
+  }
 });
 
 /* ================= 404 HANDLER ================= */
