@@ -31,7 +31,7 @@ const CATEGORY_PREFIX = {
   downloader: "/download",
   tools: "/tools",
   random: "/random",
-  information: "/information",
+  info: "/info",
   games: "/games",
   admin: "/admin",
   search: "/search",
@@ -119,7 +119,7 @@ app.use((req, res, next) => {
 
 function loadPlugins() {
 
-  pluginRouter.stack = []; // reset route lama
+  pluginRouter.stack = [];
 
   const pluginsDir = path.join(__dirname, 'plugins');
   const apiList = [];
@@ -205,7 +205,6 @@ function loadPlugins() {
   return { count: registeredCount, list: apiList };
 }
 
-/* ================= INIT ================= */
 
 let { count, list: apiList } = loadPlugins();
 

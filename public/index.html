@@ -634,7 +634,7 @@ body > * { position: relative; z-index: 1; }
 }
 
 /* ── DETAIL INNER ────────────────────────────────────── */
-.det-inner { padding: 16px 18px 28px; max-width: 760px; }
+.det-inner { padding: 16px 18px 28px; max-width: nonoe; width: 100%; }
 .hero-card {
   background: rgba(22,25,33,.9);
   border: 1px solid var(--b1);
@@ -1320,6 +1320,7 @@ body > * { position: relative; z-index: 1; }
   .status-chip { max-width: 120px; font-size: 8px; }
   .ws { flex-direction: column; min-height: 0; }
   .det {
+    flex: 1;
     width: 100%;
     height: auto;
     min-height: calc(100dvh - var(--hh));

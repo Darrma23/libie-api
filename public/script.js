@@ -258,21 +258,22 @@ document.getElementById('qrisModal')?.addEventListener('click', e => {
 });
 
 /* ── APP LOADER ───────────────────── */
-window.addEventListener('load', () => {
-  const loader = document.getElementById('appLoader');
+window.addEventListener("load", () => {
+  const loader = document.getElementById("appLoader");
+
   setTimeout(() => {
-    if (loader) {
-      loader.style.animation = 'fadeOut .35s ease forwards';
-      setTimeout(() => loader.remove(), 400);
-    }
-  }, 3000);
+    loader.style.opacity = "0";
+    loader.style.transition = "opacity .4s ease";
+
+    setTimeout(() => loader.remove(), 400);
+  }, 900);
 });
 
 /* ── LOADER WITH PERCENT ───────────── */
 const loader = document.getElementById('appLoader');
 const percent = document.getElementById('progressPercent');
 let start = performance.now();
-const duration = 5000;
+const duration = 1200;
 function easeOutCubic(t) {
   return 1 - Math.pow(1 - t, 3);
 }
@@ -281,14 +282,13 @@ function animate(now) {
   const eased = easeOutCubic(t);
   const progress = eased * 100;
   const rounded = Math.floor(progress);
-  percent.textContent = rounded + "%";
+  if (percent) percent.textContent = rounded + "%";
   
   /* ================= FADE & BLUR ================= */
   if (progress >= 80) {
     const fade = (progress - 80) / 20; // 0 → 1 (smooth)
-    loader.style.opacity = (1 - fade).toFixed(2);
     loader.style.transform = `scale(${1 + fade * 0.05})`;
-    loader.style.filter = `blur(${fade * 6}px)`;
+    loader.style.opacity = 1 - fade;
   }
   if (t < 1) {
     requestAnimationFrame(animate);
@@ -558,7 +558,7 @@ function mkTryPanel(ep, uid) {
   if((ep.bodyParams||[]).length)body.appendChild(mkBodyField(ep,uid));
 
   const pgwrap=el('div','pgwrap'); const pgbar=el('div','pgbar'); pgbar.id='pgbar-'+uid; pgwrap.appendChild(pgbar);
-  const tmsg=el('div','timeout-msg'); tmsg.id='tmsg-'+uid; tmsg.textContent='Request timeout setelah 15 detik.';
+  const tmsg=el('div','timeout-msg'); tmsg.id='tmsg-'+uid; tmsg.textContent='Request timeout setelah 30 detik.';
   const rsec=el('div','resp-section'); rsec.id='rsec-'+uid;
   const rTop=el('div','resp-top'); const rmeta=el('div','resp-meta'); rmeta.id='rmeta-'+uid;
   const cpBtn=el('button','cpbtn','Copy'); cpBtn.type='button';
@@ -589,7 +589,6 @@ function mkField(p, ep, uid) {
     );
     if (m) exampleVal = decodeURIComponent(m[1]);
   } catch {}
-  /* ================= SELECT ================= */
   if (p.dtype === 'select' && Array.isArray(p.options)) {
     const sel = el('select');
     sel.id = 'fi-'+uid+'-'+p.name;
@@ -609,7 +608,6 @@ function mkField(p, ep, uid) {
     }
     return wrap;
   }
-  /* ================= FILE ================= */
   if (p.dtype === 'file') {
     const inp = el('input');
     inp.type = 'file';
@@ -623,7 +621,6 @@ function mkField(p, ep, uid) {
     }
     return wrap;
   }
-  /* ================= TEXT (DEFAULT) ================= */
   const inp = el('input');
   inp.id = 'fi-'+uid+'-'+p.name;
   inp.type = 'text';
@@ -632,6 +629,12 @@ function mkField(p, ep, uid) {
   inp.autocomplete='off';
   inp.spellcheck=false;
   inp.addEventListener('input', () => updateRealtimeCurl(ep, uid));
+  inp.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.isComposing) {
+      e.preventDefault();
+      runEp(uid);
+    }
+  });
   wrap.append(lab, inp);
   if (p.desc) {
     const hint = el('div','hint');
@@ -640,6 +643,7 @@ function mkField(p, ep, uid) {
   }
   return wrap;
 }
+
 function mkBodyField(ep, uid) {
   const wrap = el('div','tf');
   const lab  = el('label');
@@ -832,7 +836,7 @@ async function runEp(uid) {
   if(pgbar){pgbar.style.transition='none';pgbar.style.width='0%';requestAnimationFrame(()=>{pgbar.style.transition='width 13s linear';pgbar.style.width='88%';});}
 
   const t0=Date.now(); let r=null,data=null;
-  const ctrl=new AbortController(); const tid=setTimeout(()=>ctrl.abort(),180000);
+  const ctrl=new AbortController(); const tid=setTimeout(()=>ctrl.abort(), 3000);
   try {
     opts.signal=ctrl.signal; r=await fetch(url,opts); clearTimeout(tid);
     const ct=r.headers.get('content-type')||'';

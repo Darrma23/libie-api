@@ -1,159 +1,134 @@
 const axios = require("axios");
+const csv = require("csv-parser");
+const { Readable } = require("stream");
 
-let wilayahCache = null;
+let wilayahCache = [];
 
-/* ============================= */
-/* LOAD DATA WILAYAH (CACHE)    */
-/* ============================= */
+/* ========================
+   LOAD CSV SEKALI
+======================== */
+
 async function loadWilayah() {
-  if (wilayahCache) return wilayahCache;
+  if (wilayahCache.length) return wilayahCache;
 
   const { data } = await axios.get(
-    "https://raw.githubusercontent.com/yusufsyaifudin/wilayah-indonesia/master/data/list_of_area/indonesia-region.min.json",
+    "https://raw.githubusercontent.com/kodewilayah/permendagri-72-2019/main/dist/base.csv",
     { timeout: 20000 }
   );
 
-  wilayahCache = data;
+  const rows = [];
+
+  await new Promise((resolve, reject) => {
+    Readable.from(data)
+      .pipe(csv())
+      .on("data", row => rows.push(row))
+      .on("end", resolve)
+      .on("error", reject);
+  });
+
+  wilayahCache = rows;
   return wilayahCache;
 }
 
-/* ============================= */
-/* FORMAT ADM4 (WAJIB 10 DIGIT) */
-/* ============================= */
-function formatAdm4(id) {
-  id = String(id).trim();
 
-  if (!/^\d{10}$/.test(id)) {
-    throw new Error("ID wilayah tidak valid: " + id);
-  }
-
-  return `${id.slice(0,2)}.${id.slice(2,4)}.${id.slice(4,6)}.${id.slice(6)}`;
+function normalize(str) {
+  return (str || "")
+    .toLowerCase()
+    .replace(/[^\w\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-/* ============================= */
-/* CARI DESA EXACT MATCH DULU   */
-/* ============================= */
-async function cariWilayah(keyword) {
+
+async function searchWilayah(query) {
   const wilayah = await loadWilayah();
-  keyword = keyword.toLowerCase();
-
-  for (const prov of wilayah) {
-    for (const kab of prov.regencies) {
-      for (const kec of kab.districts) {
-        for (const desa of kec.villages) {
-
-          if (
-            desa.name.toLowerCase() === keyword ||
-            kec.name.toLowerCase() === keyword ||
-            kab.name.toLowerCase().includes(keyword)
-          ) {
-            return {
-              id: desa.id,
-              desa: desa.name,
-              kecamatan: kec.name,
-              kabupaten: kab.name,
-              provinsi: prov.name
-            };
-          }
-
-        }
-      }
+  const tokens = normalize(query).split(/\s+/);
+  const results = [];
+  for (const w of wilayah) {
+    const text = normalize(w.nama);
+    const match = tokens.every(t => text.includes(t));
+    if (match) {
+      results.push(w);
+      if (results.length >= 5) break;
     }
   }
-
-  return null;
+  return results;
 }
 
-/* ============================= */
-/* EXPORT PLUGIN                */
-/* ============================= */
 module.exports = {
-  name: "Cek Cuaca",
-  desc: "Menampilkan prakiraan cuaca BMKG berdasarkan nama wilayah",
+  name: "BMKG Cuaca",
+  desc: "Prakiraan cuaca berdasarkan nama wilayah",
   category: "Info",
   method: "GET",
   path: "/cuaca",
   params: [
-    {
-      name: "kota",
-      type: "query",
-      required: true,
-      dtype: "string",
-      desc: "Nama desa/kecamatan/kabupaten"
-    }
+    { name: "q", type: "query", required: true, desc: "Nama wilayah" }
   ],
-  example: "/info/cuaca?kota=kemayoran",
+  example: "/info/cuaca?q=muncang bodeh pemalang",
 
   async run(req, res) {
     try {
-      const { kota } = req.query;
+      const { q } = req.query;
 
-      if (!kota) {
+      if (!q)
         return res.status(400).json({
           status: false,
-          message: "Parameter 'kota' diperlukan",
+          message: "Parameter q wajib diisi"
         });
-      }
 
-      /* === CARI LOKASI === */
-      const lokasi = await cariWilayah(kota);
+      const results = await searchWilayah(q);
 
-      if (!lokasi) {
+      if (!results.length)
         return res.status(404).json({
           status: false,
-          message: "Wilayah tidak ditemukan",
+          message: "Wilayah tidak ditemukan"
         });
-      }
 
-      /* === FORMAT ADM4 === */
-      const adm4 = formatAdm4(lokasi.id);
+      const wilayah = results[0];
+      const adm4 = wilayah.kode;
 
-      console.log("RAW ID:", lokasi.id);
-      console.log("ADM4:", adm4);
-
-      /* === REQUEST BMKG === */
       const { data } = await axios.get(
         `https://api.bmkg.go.id/publik/prakiraan-cuaca?adm4=${adm4}`,
         { timeout: 15000 }
       );
 
-      const prakiraan = data?.data?.[0]?.cuaca?.[0];
+      if (!data?.data?.[0])
+        throw new Error("Struktur data BMKG tidak valid");
 
-      if (!prakiraan || !prakiraan.length) {
-        return res.status(404).json({
-          status: false,
-          message: "Data cuaca tidak tersedia",
-        });
-      }
+      const cuaca = data.data[0].cuaca;
 
-      return res.status(200).json({
+      const result = cuaca.map((hari, i) => ({
+        hari_ke: i + 1,
+        prakiraan: hari.map(c => ({
+          waktu: c.local_datetime,
+          kondisi: c.weather_desc,
+          suhu: c.t,
+          kelembapan: c.hu,
+          angin: `${c.ws} km/j`,
+          arah: c.wd,
+          icon: c.image?.replace(/ /g, "%20") || null
+        }))
+      }));
+
+      return res.json({
         status: true,
         creator: "Himejima",
-        data: {
-          lokasi: {
-            desa: lokasi.desa,
-            kecamatan: lokasi.kecamatan,
-            kabupaten: lokasi.kabupaten,
-            provinsi: lokasi.provinsi,
-            adm4
-          },
-          prakiraan_hari_ini: prakiraan
+        adm4,
+        lokasi: {
+          desa: wilayah.nama,
+          kecamatan: wilayah.kecamatan,
+          kabupaten: wilayah.kabupaten,
+          provinsi: wilayah.provinsi
         },
-        metadata: {
-          source: "BMKG (Badan Meteorologi, Klimatologi, dan Geofisika)",
-          timestamp: new Date().toISOString(),
-        },
+        result
       });
 
     } catch (err) {
-      console.error("[Plugin Cuaca ERROR]", err.response?.data || err.message);
-
       return res.status(500).json({
         status: false,
-        message: "Gagal mengambil data cuaca",
-        error: err.message,
-        timestamp: new Date().toISOString(),
+        message: "Terjadi kesalahan server",
+        error: err.message
       });
     }
-  },
+  }
 };
