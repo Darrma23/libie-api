@@ -3,7 +3,7 @@ const { createCanvas } = require("@napi-rs/canvas")
 
 module.exports = {
   name: "Brat",
-  desc: "Generate brat text meme",
+  desc: "Generate brat meme image",
   category: "Maker",
   method: "GET",
   path: "/brat",
@@ -18,8 +18,11 @@ module.exports = {
     },
   ],
 
+  example: "/maker/brat?q=halo dunia",
+
   async run(req, res) {
     try {
+
       const text = req.query.q
 
       const width = 1200
@@ -28,65 +31,105 @@ module.exports = {
       const canvas = createCanvas(width, height)
       const ctx = canvas.getContext("2d")
 
-      // background putih
       ctx.fillStyle = "#ffffff"
       ctx.fillRect(0, 0, width, height)
 
-      const fontSize = 160
+      const startX = 80
+      const startY = 80
+      const maxWidth = width * 0.9
+      const maxTextHeight = height - 160
+
+      function getFontSize(ctx, text, maxWidth, maxHeight, startSize) {
+
+        let fontSize = startSize
+
+        while (fontSize > 20) {
+
+          ctx.font = `bold ${fontSize}px Sans`
+          const lineHeight = fontSize * 1.2
+
+          const words = text.split(" ")
+          let line = ""
+          let lines = 1
+
+          for (let i = 0; i < words.length; i++) {
+
+            const testLine = line + words[i] + " "
+            const w = ctx.measureText(testLine).width
+
+            if (w > maxWidth && i > 0) {
+              lines++
+              line = words[i] + " "
+            } else {
+              line = testLine
+            }
+
+          }
+
+          const totalHeight = lines * lineHeight
+
+          if (totalHeight < maxHeight) return fontSize
+
+          fontSize -= 4
+        }
+
+        return 20
+      }
+
+      const fontSize = getFontSize(ctx, text, maxWidth, maxTextHeight, 160)
 
       ctx.font = `bold ${fontSize}px Sans`
+      ctx.fillStyle = "#000000"
       ctx.textAlign = "left"
       ctx.textBaseline = "top"
 
-      ctx.fillStyle = "#000000"
-      ctx.lineWidth = 1
-      ctx.lineJoin = "round"
-
       const lineHeight = fontSize * 1.2
-      const maxWidth = width * 0.9
-
-      const startX = 80
-      const startY = 80
 
       function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
+
         const words = text.split(" ")
         let line = ""
         let currentY = y
 
         for (let i = 0; i < words.length; i++) {
+
           const testLine = line + words[i] + " "
           const w = ctx.measureText(testLine).width
 
           if (w > maxWidth && i > 0) {
-            ctx.strokeText(line, x, currentY)
-            ctx.fillText(line, x, currentY)
 
+            ctx.fillText(line, x, currentY)
             line = words[i] + " "
             currentY += lineHeight
+
           } else {
+
             line = testLine
+
           }
+
         }
 
-        ctx.strokeText(line, x, currentY)
         ctx.fillText(line, x, currentY)
       }
 
       wrapText(ctx, text, startX, startY, maxWidth, lineHeight)
 
-      const buffer = canvas.toBuffer("image/png")
+      const buffer = canvas.toBuffer("image/webp")
 
-      res.setHeader("Content-Type", "image/png")
-      res.status(200).send(buffer)
+      res.setHeader("Content-Type", "image/webp")
+      res.send(buffer)
 
     } catch (err) {
-      console.error("[Plugin Brat]", err.message)
+
+      console.error("[Brat]", err)
 
       res.status(500).json({
         status: false,
         message: "Gagal generate brat",
-        error: err.message,
+        error: err.message
       })
+
     }
   }
 }
