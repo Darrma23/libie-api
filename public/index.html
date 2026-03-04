@@ -867,16 +867,11 @@ body > * { position: relative; z-index: 1; }
 .resp-meta .s-err { color: var(--red); font-weight: 700; }
 .resp-meta .mv { color: var(--t2); }
 .resp-body { padding: 10px 14px 14px; }
-.resp-code-wrap {
-  background: #0a0c10;
-  border: 1px solid var(--b1);
-  border-radius: 5px;
-  padding: 12px;
-  max-height: 340px;
-  overflow: auto;
-  -webkit-overflow-scrolling: touch;
-}
+.resp-code-wrap {background: #0a0c10; border: 1px solid var(--b1); border-radius: 5px; padding: 12px; max-height: 340px; overflow: auto; -webkit-overflow-scrolling: touch;}
 .resp-code { font-family: var(--mono); font-size: 11px; line-height: 1.75; white-space: pre; word-break: break-all; color: #b8bdd8; }
+.resp-code img, .resp-code video {max-width: 100%; height: auto; border-radius: 6px; display: block;}
+.resp-code audio {width: 100%; display: block;}
+.resp-code.media {white-space: normal; word-break: normal;}
 
 /* Code tabs */
 .ctabs-wrap { background: #0a0c10; border: 1px solid var(--b1); border-radius: var(--r); overflow: hidden; }

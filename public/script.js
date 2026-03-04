@@ -836,12 +836,19 @@ async function runEp(uid) {
   if(pgbar){pgbar.style.transition='none';pgbar.style.width='0%';requestAnimationFrame(()=>{pgbar.style.transition='width 13s linear';pgbar.style.width='88%';});}
 
   const t0=Date.now(); let r=null,data=null;
-  const ctrl=new AbortController(); const tid=setTimeout(()=>ctrl.abort(), 3000);
+  const ctrl=new AbortController(); const tid=setTimeout(()=>ctrl.abort(), 30000);
   try {
     opts.signal=ctrl.signal; r=await fetch(url,opts); clearTimeout(tid);
     const ct=r.headers.get('content-type')||'';
     if(ct.includes('application/json')||ct.includes('text/json')){data=await r.json();}
-    else if(ct.includes('image/')||ct.includes('audio/')||ct.includes('video/')){data={_info:'Binary response ('+ct+')',contentType:ct,status:r.status};}
+    else if (ct.includes('image/') ||ct.includes('audio/') ||ct.includes('video/')){const blob = await r.blob();const mediaUrl = URL.createObjectURL(blob);
+
+  data = {
+    _media: true,
+    type: ct,
+    url: mediaUrl
+  };
+}
     else{const txt=await r.text();try{data=JSON.parse(txt);}catch{data={response:txt.substring(0,500)};}}
   } catch(e){
     clearTimeout(tid);
@@ -867,7 +874,23 @@ async function runEp(uid) {
     const usp=el('span','mv');usp.textContent=url;s3.appendChild(usp);
     rmeta.append(s1,s2,s3);
   }
-  if(rcode)rcode.innerHTML=hlJSON(JSON.stringify(data,null,2));
+  if (rcode) {
+    if (data?._media) {
+      rcode.classList.add("media");
+        if (data.type.startsWith("image/")) {
+          rcode.innerHTML = `<img src="${data.url}" style="max-width:100%;border-radius:8px">`;
+        } 
+        else if (data.type.startsWith("audio/")) {
+          rcode.innerHTML = `<audio controls src="${data.url}" style="width:100%"></audio>`;
+        } 
+        else if (data.type.startsWith("video/")) {
+          rcode.innerHTML = `<video controls src="${data.url}" style="max-width:100%"></video>`;
+        }
+      } else {
+        rcode.classList.remove("media");
+        rcode.innerHTML = hlJSON(JSON.stringify(data,null,2));
+      }
+    }
   rsec?.classList.add('vis');
   if(window.innerWidth<=767)rsec?.scrollIntoView({behavior:'smooth',block:'nearest'});
   toast(ok?status+' OK · '+ms+'ms':status+' Error',ok?'ok-t':'err-t');
