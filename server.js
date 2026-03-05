@@ -8,11 +8,11 @@ const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 const os = require('os');
 const { execSync } = require('child_process');
+const chokidar = require("chokidar");
 const helmet = require("helmet");
 
 const { ipLimiter, getIP, LIMIT } = require('./lib/iplimiter');
 const redis = require('./lib/redis');
-const { generateUploadUrl } = require('./lib/storage');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -22,11 +22,15 @@ app.set('json spaces', 2);
 
 const CREATOR = "Himejima";
 
+/* ================= CLEAN STRING ================= */
+
 function clean(str) {
   return String(str || '')
     .replace(/[<>"']/g, '')
     .trim();
 }
+
+/* ================= CATEGORY PREFIX ================= */
 
 const CATEGORY_PREFIX = {
   downloader: "/download",
@@ -57,107 +61,112 @@ function resolvePrefix(category) {
   return CATEGORY_PREFIX[String(category).toLowerCase()] || '/other';
 }
 
-/* ================= GLOBAL MIDDLEWARE ================= */
+/* ================= BURST LIMITER ================= */
 
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  message: { status:false, message:'Terlalu banyak request' }
+  windowMs: 1000,
+  max: 50,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => getIP(req),
+  message: {
+    status: false,
+    message: "Terlalu banyak request"
+  }
 });
+
+/* ================= GLOBAL MIDDLEWARE ================= */
 
 app.use(helmet());
 app.disable("x-powered-by");
-
-app.use('/', limiter);
-let pluginRouter = express.Router();
-app.use('/api', async (req, res, next) => {
-  try {
-    const todayKey = new Date().toISOString().slice(0, 10);
-
-    await redis.incr('stats:hits:all');
-    await redis.incr(`stats:hits:day:${todayKey}`);
-
-  } catch (err) {
-    console.error('Hit counter error:', err.message);
-  }
-
-  next();
-});
-app.use(ipLimiter);
-
-app.use(morgan('dev'));
+app.use('/api', limiter);
 app.use(cors());
+app.use(morgan('dev'));
 app.use(express.json({ limit: "3mb" }));
 app.use(express.urlencoded({ extended:true, limit:"3mb" }));
+
 app.use(express.static(path.join(__dirname,'public')));
-app.use('/files', express.static(path.join(process.cwd(), 'files')));
+app.use('/files', express.static(path.join(process.cwd(),'files')));
 
-const fileUpload = require("express-fileupload");
+app.use(ipLimiter);
 
-app.use(fileUpload({
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
-  abortOnLimit: true,
-  responseOnLimit: {
-    status: false,
-    message: "File terlalu besar (max 10MB)"
-  }
-}));
+app.use((req,res,next)=>{
+  const original = res.json;
 
-app.use('/api', pluginRouter);
-
-/* ================= CREATOR INJECTION ================= */
-
-app.use((req, res, next) => {
-  const originalJson = res.json;
-
-  res.json = function (body) {
-    if (typeof body === 'object' && body !== null) {
+  res.json = function(body){
+    if(body && typeof body === "object" && !Buffer.isBuffer(body)){
       body.creator = CREATOR;
     }
-    return originalJson.call(this, body);
+    return original.call(this, body);
   };
 
   next();
 });
 
-/* ================= LOAD PLUGINS ================= */
+/* ================= FILE UPLOAD ================= */
 
-function loadPlugins() {
+const fileUpload = require("express-fileupload");
+
+app.use(fileUpload({
+  limits: { fileSize: 10 * 1024 * 1024 },
+  abortOnLimit: true,
+  responseOnLimit: {
+    status:false,
+    message:"File terlalu besar (max 10MB)"
+  }
+}));
+
+/* ================= PLUGIN ROUTER ================= */
+
+let pluginRouter = express.Router();
+app.use('/api', pluginRouter);
+
+const loadedPlugins = new Map();
+
+let count = 0;
+let apiList = [];
+
+/* ================= LOAD ALL PLUGINS ================= */
+
+function loadPlugins(){
 
   pluginRouter.stack = [];
 
-  const pluginsDir = path.join(__dirname, 'plugins');
-  const apiList = [];
+  const pluginsDir = path.join(__dirname,"plugins");
   let registeredCount = 0;
+  
+  apiList = [];
 
-  if (!fs.existsSync(pluginsDir)) {
-    global.apiList = [];
-    return { count: 0, list: [] };
+  if(!fs.existsSync(pluginsDir)){
+    return {count:0,list:[]};
   }
 
   const categories = fs.readdirSync(pluginsDir).filter(file =>
-    fs.statSync(path.join(pluginsDir, file)).isDirectory()
+    fs.statSync(path.join(pluginsDir,file)).isDirectory()
   );
 
-  categories.forEach(category => {
+  categories.forEach(category=>{
 
-    const categoryPath = path.join(pluginsDir, category);
-    const files = fs.readdirSync(categoryPath).filter(f => f.endsWith('.js'));
+    const categoryPath = path.join(pluginsDir,category);
+    const files = fs.readdirSync(categoryPath).filter(f=>f.endsWith(".js"));
 
-    files.forEach(file => {
+    files.forEach(file=>{
 
-      const filePath = path.join(categoryPath, file);
-      delete require.cache[require.resolve(filePath)];
-
+      const filePath = path.join(categoryPath,file);
+      if (require.cache[require.resolve(filePath)]) {
+        delete require.cache[require.resolve(filePath)];
+      }
+      
       let plugin;
+      
       try {
         plugin = require(filePath);
       } catch (err) {
-        console.error(`✖ Gagal load ${file}:`, err.message);
+        console.error(`✖ Gagal load ${file}`, err.message);
         return;
       }
-
-      if (!plugin.name || !plugin.method || !plugin.path || typeof plugin.run !== 'function') {
+      
+      if(!plugin.name || !plugin.method || !plugin.path || typeof plugin.run !== "function"){
         console.error(`✖ Plugin ${file} tidak valid`);
         return;
       }
@@ -166,109 +175,188 @@ function loadPlugins() {
       const basePath = plugin.path.startsWith('/') ? plugin.path : '/' + plugin.path;
 
       const prefix = resolvePrefix(plugin.category || category);
-      const fullPath = `${prefix}${basePath}`.replace(/\/+/g, '/');
+      const fullPath = `${prefix}${basePath}`.replace(/\/+/g,'/');
 
-      pluginRouter[method](fullPath, async (req, res) => {
-        try {
-          await plugin.run(req, res);
-        } catch (err) {
+      const handler = async(req,res)=>{
+        try{
+          await plugin.run(req,res);
+        }catch(err){
           res.status(500).json({
-            status: false,
-            message: err.message
+            status:false,
+            message:err.message
           });
         }
+      };
+
+      pluginRouter[method](fullPath,handler);
+
+      loadedPlugins.set(filePath,{
+        name: plugin.name,
+        desc: plugin.desc,
+        category: plugin.category || category,
+        method,
+        fullPath,
+        handler
       });
 
       registeredCount++;
 
-      const normalizedParams = Array.isArray(plugin.params)
-        ? plugin.params.map(p => ({
-            nama: p.nama || p.name || '',
-            tipe: p.tipe || p.type || 'query',
-            required: p.required ?? true,
-            dtype: p.dtype || 'string',
-            desc: p.desc || '',
-            options: p.options || []
-          }))
-        : [];
-      
       apiList.push({
-        nama: plugin.name,
-        deskripsi: plugin.desc,
-        kategori: plugin.category || category,
-        method: plugin.method.toUpperCase(),
-        endpoint: `/api${fullPath}`,
-        parameter: normalizedParams,
-        contoh: plugin.example || ''
+        nama:plugin.name,
+        deskripsi:plugin.desc,
+        kategori:plugin.category || category,
+        method:plugin.method.toUpperCase(),
+        endpoint:`/api${fullPath}`
       });
 
       console.log(`✔ ${method.toUpperCase()} /api${fullPath}`);
+
     });
+
   });
 
-  global.apiList = apiList;
   return { count: registeredCount, list: apiList };
 }
 
+/* ================= REMOVE PLUGIN ================= */
 
-let { count, list: apiList } = loadPlugins();
+function removePluginRoute(filePath){
+
+  const plugin = loadedPlugins.get(filePath);
+  if(!plugin) return;
+
+  const {method,fullPath} = plugin;
+
+  pluginRouter.stack = pluginRouter.stack.filter(layer=>{
+    if(!layer.route) return true;
+
+    const routePath = layer.route.path;
+    const routeMethod = Object.keys(layer.route.methods)[0];
+
+    return !(routePath === fullPath && routeMethod === method.toLowerCase());
+  });
+
+  loadedPlugins.delete(filePath);
+}
+
+/* ================= SINGLE RELOAD ================= */
+
+function loadSinglePlugin(filePath){
+
+  try{
+
+    if (require.cache[require.resolve(filePath)]) {
+     delete require.cache[require.resolve(filePath)];
+   }
+
+    const plugin = require(filePath);
+
+    const method = plugin.method.toLowerCase();
+    const basePath = plugin.path.startsWith('/') ? plugin.path : '/' + plugin.path;
+
+    const category = plugin.category || path.basename(path.dirname(filePath));
+    const prefix = resolvePrefix(category);
+    const fullPath = `${prefix}${basePath}`.replace(/\/+/g,'/');
+
+    const handler = async(req,res)=>{
+      try{
+        await plugin.run(req,res);
+      }catch(err){
+        res.status(500).json({
+          status:false,
+          message:err.message
+        });
+      }
+    };
+
+    pluginRouter[method](fullPath,handler);
+
+    loadedPlugins.set(filePath,{
+     name: plugin.name,
+     desc: plugin.desc,
+     category: plugin.category || category,
+     method,
+     fullPath,
+     handler
+   });
+
+    console.log(`✔ Reloaded ${method.toUpperCase()} /api${fullPath}`);
+
+  }catch(err){
+    console.error(`✖ Reload error ${filePath}`,err.message);
+  }
+
+}
 
 /* ================= WATCHER ================= */
 
-fs.watch(path.join(__dirname, 'plugins'), { recursive: true }, (event, filename) => {
-  if (!filename || !filename.endsWith('.js')) return;
-  console.log('♻ Reload plugin...');
-  const result = loadPlugins();
-  count = result.count;
-  apiList = result.list;
+const watcher = chokidar.watch(
+  path.join(__dirname,"plugins/**/*.js"),
+  {ignoreInitial:true,persistent:true}
+);
+
+const result = loadPlugins();
+count = result.count;
+apiList = result.list;
+
+let reloadTimer;
+
+watcher.on("all",(event,filePath)=>{
+
+  if(!filePath.endsWith(".js")) return;
+
+  console.log(`♻ Plugin event: ${event} ${filePath}`);
+
+  clearTimeout(reloadTimer);
+
+  reloadTimer = setTimeout(() => {
+
+    if (event === "change" || event === "add") {
+      removePluginRoute(filePath);
+      loadSinglePlugin(filePath);
+    }
+
+    if (event === "unlink") {
+      removePluginRoute(filePath);
+      console.log(`🗑 Plugin removed: ${filePath}`);
+    }
+
+    // update registry saja
+    apiList = Array.from(loadedPlugins.values()).map(p => ({
+     nama: p.name,
+     deskripsi: p.desc,
+     kategori: p.category,
+     method: p.method.toUpperCase(),
+     endpoint: `/api${p.fullPath}`
+   }));
+
+    count = loadedPlugins.size;
+
+  }, 200);
+
 });
 
 /* ================= API INFO ================= */
 
-app.get('/api/info', (req, res) => {
-  try {
-    res.status(200).json({
-      status: true,
-      server: "LIBIE API",
-      version: pkg.version,
-      total_endpoints: apiList.length,
-      endpoint_categories: [...new Set(apiList.map(api => api.kategori))],
-      apis: apiList
-    });
-  } catch (error) {
-    res.status(500).json({
-      status: false,
-      message: error.message
-    });
-  }
-});
+app.get('/api/info',(req,res)=>{
 
-/* ================= HEALTH ================= */
-
-app.get('/api/health', (req, res) => {
-  res.status(200).json({
-    status: true,
-    message: 'Server healthy',
-    uptime: process.uptime(),
-    total_plugins: count,
-    timestamp: new Date().toISOString()
+  res.json({
+    status:true,
+    server:"LIBIE API",
+    version:pkg.version,
+    total_endpoints:apiList.length,
+    endpoint_categories:[...new Set(apiList.map(a=>a.kategori))],
+    apis:apiList
   });
-});
 
-/* ================= PING ================= */
-
-app.get('/api/ping', (req, res) => {
-  res.status(200).json({
-    status: true,
-    message: 'pong',
-    timestamp: new Date().toISOString()
-  });
 });
 
 /* ================= STATUS IP ================= */
 
-app.get('/api/status/ip', async (req,res) => {
-  try {
+app.get('/api/status/ip',async(req,res)=>{
+
+  try{
+
     const ip = getIP(req);
     const key = `quota:${ip}`;
 
@@ -276,281 +364,86 @@ app.get('/api/status/ip', async (req,res) => {
     const ttl = await redis.ttl(key);
 
     res.json({
-     status: true,
-     creator: CREATOR,
-     ip,
-     requests,
-     remaining: Math.max(0, LIMIT - requests),
-     blocked: requests >= LIMIT,
-     reset_at: ttl > 0 ? new Date(Date.now() + ttl * 1000) : null,
-     endpoints_used: requests
-   });
+      status:true,
+      ip,
+      requests,
+      remaining:Math.max(0,LIMIT - requests),
+      blocked:requests >= LIMIT,
+      reset_at: ttl > 0 ? new Date(Date.now() + ttl*1000) : null
+    });
 
-  } catch (err) {
-    console.error('Quota read error:', err.message);
+  }catch(err){
 
     res.status(500).json({
       status:false,
-      message:'Gagal membaca quota'
-    });
-  }
-});
-
-/* ================= USER REPORT ================= */
-app.post('/api/user-report', async (req, res) => {
-  try {
-    const ip = getIP(req);
-    const { type, message, timestamp } = req.body;
-
-    if (!message || !message.trim()) {
-      return res.status(400).json({
-        status: false,
-        error: 'Pesan laporan kosong'
-      });
-    }
-
-    const cleanType = clean(type || 'other');
-    const cleanMsg  = clean(message);
-    const time = timestamp || new Date().toISOString();
-
-    const key = `report:${Date.now()}`;
-
-    await redis.hSet(key, {
-     ip,
-     type: cleanType,
-     message: cleanMsg,
-     timestamp: time
-   });
-   
-   await redis.expire(key, 60 * 60 * 24 * 7);
-   
-   await redis.publish("reports", JSON.stringify({
-     ip,
-     type: cleanType,
-     message: cleanMsg,
-     timestamp: time
-   }));
-   
-   console.log(`📩 REPORT ${cleanType.toUpperCase()} dari ${ip}`);
-   
-   res.json({
-     status: true,
-     message: 'Laporan diterima'
-   });
-
-  } catch (err) {
-    console.error('🔥 Report error:', err.message);
-
-    res.status(500).json({
-      status: false,
-      error: err.message
-    });
-  }
-});
-
-/* ================= STATUS API ================= */
-app.get('/api/stats', async (req, res) => {
-  const start = Date.now();
-  const todayKey = new Date().toISOString().slice(0, 10);
-  
-  try {
-    const exec = (cmd) => {
-      try { return execSync(cmd).toString().trim(); }
-      catch { return "N/A"; }
-    };
-
-    /* ================= SYSTEM ================= */
-    const load = os.loadavg();
-    const cores = os.cpus().length;
-
-    const memTotal = os.totalmem();
-    const memFree = os.freemem();
-    const memUsed = memTotal - memFree;
-
-    const diskRaw = exec("df -h / | tail -1").split(/\s+/);
-
-    /* ================= API STATS ================= */
-    const totalReports = (await redis.keys('report:*')).length;
-    const totalUsers   = (await redis.keys('quota:*')).length;
-    const totalHitsAll = Number(await redis.get('stats:hits:all')) || 0;
-    const totalHitsToday =Number(await redis.get(`stats:hits:day:${todayKey}`)) || 0;
-
-    const cpuUsage = ((load[0] / cores) * 100);
-    const memUsage = ((memUsed / memTotal) * 100);
-
-    /* ================= WARNINGS ================= */
-    const warnings = [];
-
-    if (cpuUsage > 90)
-      warnings.push("CRITICAL: CPU overload");
-
-    if (memUsage > 85)
-      warnings.push("WARNING: High memory usage");
-
-    res.json({
-      status: true,
-
-      server: {
-        os: exec("lsb_release -ds || uname -o"),
-        kernel: os.release(),
-        arch: os.arch(),
-        platform: os.platform(),
-        hostname: os.hostname(),
-        uptime: exec("uptime -p"),
-
-        cpu: {
-          model: os.cpus()[0]?.model,
-          cores,
-          load_1m: load[0],
-          load_5m: load[1],
-          load_15m: load[2],
-          usage_percent: cpuUsage.toFixed(2)
-        },
-
-        memory: {
-          total_gb: (memTotal / 1024 / 1024 / 1024).toFixed(2),
-          used_gb: (memUsed / 1024 / 1024 / 1024).toFixed(2),
-          free_gb: (memFree / 1024 / 1024 / 1024).toFixed(2),
-          usage_percent: memUsage.toFixed(2)
-        },
-
-        disk: {
-          total: diskRaw[1] || "N/A",
-          used: diskRaw[2] || "N/A",
-          free: diskRaw[3] || "N/A",
-          percent: diskRaw[4] || "N/A"
-        }
-      },
-
-      api: {
-        total_endpoints: apiList.length,
-        active_users: totalUsers,
-        total_reports: totalReports,
-        total_hits_today: totalHitsToday,
-        total_hits_all: totalHitsAll
-      },
-
-      process: {
-        node_version: process.version,
-        rss_mb: (process.memoryUsage().rss / 1024 / 1024).toFixed(2)
-      },
-
-      warnings,
-      collection_time_ms: Date.now() - start,
-      generated_at: new Date().toISOString()
+      message:"Gagal membaca quota"
     });
 
-  } catch (err) {
-    res.status(500).json({
-      status: false,
-      message: err.message
-    });
   }
-});
 
-/* ================= RUN NOTIFY ================= */
-app.post('/api/run-notify', async (req, res) => {
-  try {
-    const { endpoint, method, status, ms, url } = req.body;
-    const ip = getIP(req);
-
-    console.log(`🧪 TRY ${method} ${endpoint} → ${status} (${ms}ms) dari ${ip}`);
-
-    res.json({ status: true });
-
-  } catch (err) {
-    console.error('Run notify error:', err.message);
-    res.status(500).json({ status:false });
-  }
 });
 
 /* ================= FRONTEND ================= */
 
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+app.get('/',(req,res)=>{
+  res.sendFile(path.join(__dirname,'public','index.html'));
 });
 
-app.get('/server', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'server.html'));
-});
+/* ================= 404 ================= */
 
-app.post('/api/storage/get-upload-url', async (req, res) => {
-  try {
-    const { contentType } = req.body;
+app.use((req,res)=>{
 
-    const result = await generateUploadUrl(contentType);
-
-    res.json({
-      status: true,
-      ...result
-    });
-
-  } catch (err) {
-    res.status(500).json({
-      status: false,
-      message: err.message
-    });
-  }
-});
-
-/* ================= 404 HANDLER ================= */
-
-app.use((req, res) => {
   const acceptsHTML = req.headers.accept?.includes('text/html');
 
-  if (acceptsHTML) {
+  if(acceptsHTML){
     return res.status(404).sendFile(
-      path.join(__dirname, 'public', '404.html')
+      path.join(__dirname,'public','404.html')
     );
   }
 
   res.status(404).json({
-    status: false,
-    message: 'Endpoint tidak ditemukan',
-    requested_url: req.originalUrl,
-    method: req.method,
-    available_endpoints: '/api/info'
+    status:false,
+    message:"Endpoint tidak ditemukan",
+    requested_url:req.originalUrl,
+    method:req.method,
+    available_endpoints:"/api/info"
   });
+
 });
 
 /* ================= ERROR HANDLER ================= */
 
-app.use((err, req, res, next) => {
-  console.error('🔥 Global Error:', err.stack);
+app.use((err,req,res,next)=>{
+
+  console.error("🔥 Global Error:",err.stack);
 
   res.status(500).json({
-    status: false,
-    message: err.message,
-    timestamp: new Date().toISOString()
+    status:false,
+    message:err.message
   });
+
 });
 
 /* ================= START ================= */
 
-app.listen(PORT, "0.0.0.0", async () => {
-  console.log('\n==============================');
-  console.log('🚀 LIBIE API STARTED');
-  console.log('==============================');
+app.listen(PORT,"0.0.0.0",async()=>{
 
-  console.log(`🌐 URL          : http://localhost:${PORT}`);
-  console.log(`📚 Docs UI      : http://localhost:${PORT}`);
-  console.log(`🔍 API Info     : http://localhost:${PORT}/api/info`);
-  console.log(`🏓 Ping         : http://localhost:${PORT}/api/ping`);
+  console.log("\n==============================");
+  console.log("🚀 LIBIE API STARTED");
+  console.log("==============================");
 
-  console.log('------------------------------');
+  console.log(`🌐 http://localhost:${PORT}`);
+  console.log(`📚 /api/info`);
+
   console.log(`📊 Total Plugin : ${count}`);
-  console.log(`🧩 Categories   : ${[...new Set(apiList.map(a => a.kategori))].join(', ')}`);
 
-  try {
+  try{
     const pong = await redis.ping();
-    console.log(`🟥 Redis        : ${pong}`);
-  } catch (err) {
-    console.log(`🟥 Redis        : OFFLINE (${err.message})`);
+    console.log(`🟥 Redis : ${pong}`);
+  }catch(err){
+    console.log(`🟥 Redis : OFFLINE`);
   }
 
-  console.log('------------------------------');
-  console.log(`⚙️  Mode        : ${process.env.NODE_ENV || 'development'}`);
-  console.log(`⏱ Uptime       : ${process.uptime().toFixed(2)}s`);
-  console.log(`🧠 Memory       : ${(process.memoryUsage().rss / 1024 / 1024).toFixed(2)} MB`);
-  console.log('==============================\n');
+  console.log("==============================\n");
+
 });
