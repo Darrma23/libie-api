@@ -1,5 +1,6 @@
 // plugins/Maker/brat.js
-const { createCanvas } = require("@napi-rs/canvas")
+const { createCanvas, GlobalFonts } = require("@napi-rs/canvas")
+GlobalFonts.registerFromPath("lib/Cobbler-SemiBold.ttf", "Cobbler")
 
 module.exports = {
   name: "Brat",
@@ -34,10 +35,14 @@ module.exports = {
       ctx.fillStyle = "#ffffff"
       ctx.fillRect(0, 0, width, height)
 
-      const startX = 80
-      const startY = 80
+      const startX = width * 0.07
+      const startY = height * 0.07
       const maxWidth = width * 0.9
-      const maxTextHeight = height - 160
+      const maxTextHeight = height * 0.86
+
+      /* ================= AUTO FONT ================= */
+
+      const startFont = Math.min(Math.max(width * 0.13, 40), 200)
 
       function getFontSize(ctx, text, maxWidth, maxHeight, startSize) {
 
@@ -45,8 +50,8 @@ module.exports = {
 
         while (fontSize > 20) {
 
-          ctx.font = `bold ${fontSize}px Sans`
-          const lineHeight = fontSize * 1.2
+          ctx.font = `bold ${fontSize}px Cobbler`
+          const lineHeight = fontSize * 1.1
 
           const words = text.split(" ")
           let line = ""
@@ -76,14 +81,16 @@ module.exports = {
         return 20
       }
 
-      const fontSize = getFontSize(ctx, text, maxWidth, maxTextHeight, 160)
+      const fontSize = getFontSize(ctx, text, maxWidth, maxTextHeight, startFont)
 
-      ctx.font = `bold ${fontSize}px Sans`
+      ctx.font = `${fontSize}px Cobbler`
       ctx.fillStyle = "#000000"
       ctx.textAlign = "left"
       ctx.textBaseline = "top"
 
-      const lineHeight = fontSize * 1.2
+      const lineHeight = fontSize * 1.1
+
+      /* ================= WRAP TEXT ================= */
 
       function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
 

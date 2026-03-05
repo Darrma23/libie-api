@@ -8,6 +8,7 @@ const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 const os = require('os');
 const { execSync } = require('child_process');
+const helmet = require("helmet");
 
 const { ipLimiter, getIP, LIMIT } = require('./lib/iplimiter');
 const redis = require('./lib/redis');
@@ -64,6 +65,9 @@ const limiter = rateLimit({
   message: { status:false, message:'Terlalu banyak request' }
 });
 
+app.use(helmet());
+app.disable("x-powered-by");
+
 app.use('/', limiter);
 let pluginRouter = express.Router();
 app.use('/api', async (req, res, next) => {
@@ -83,9 +87,10 @@ app.use(ipLimiter);
 
 app.use(morgan('dev'));
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended:true }));
+app.use(express.json({ limit: "3mb" }));
+app.use(express.urlencoded({ extended:true, limit:"3mb" }));
 app.use(express.static(path.join(__dirname,'public')));
+app.use('/files', express.static(path.join(process.cwd(), 'files')));
 
 const fileUpload = require("express-fileupload");
 

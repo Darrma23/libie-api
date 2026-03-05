@@ -7,6 +7,7 @@
 <link rel="icon" type="image/png" href="https://i.ibb.co.com/nsD3c6BT/IMG-20260224-WA0023.jpg">
 <link rel="apple-touch-icon" href="https://i.ibb.co.com/nsD3c6BT/IMG-20260224-WA0023.jpg">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?compat=recaptcha" async defer></script>
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 :root{
@@ -1569,11 +1570,14 @@ body > * { position: relative; z-index: 1; }
       <button class="bs-close" id="sendSheetClose" type="button">&#x2715;</button>
     </div>
     <div class="send-body">
-      <div class="send-field">
-        <label>Pesan Laporan</label>
-        <textarea id="sendMsg" placeholder="Deskripsikan masalah atau permintaan kamu secara detail..."></textarea>
-      </div>
-    </div>
+     <div class="send-field">
+       <label>Pesan Laporan</label>
+       <textarea id="sendMsg"></textarea>
+     </div>
+     <div class="cf-turnstile"
+         data-sitekey="0x4AAAAAACm2Sz-3dAP1_Yxs">
+     </div>
+   </div>
     <div class="send-actions">
       <button class="send-cancel" id="sendCancelBtn" type="button">Batal</button>
       <button class="send-submit" id="sendSubmitBtn" type="button">Kirim ke Developer</button>

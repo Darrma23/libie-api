@@ -1,5 +1,7 @@
 // plugins/Maker/bratgura.js
-const { createCanvas, loadImage } = require("@napi-rs/canvas")
+const { createCanvas, loadImage, GlobalFonts } = require("@napi-rs/canvas")
+GlobalFonts.registerFromPath("lib/Cobbler-SemiBold.ttf", "Cobbler")
+
 
 module.exports = {
     name: "Brat Gura",
@@ -33,7 +35,7 @@ module.exports = {
 
             ctx.fillStyle = "#000000"
             ctx.lineWidth = 1
-            ctx.font = "bold 180px Sans"
+            ctx.font = "230px Cobbler"
             ctx.textAlign = "left"
             ctx.lineJoin = "round"
 

@@ -7,7 +7,7 @@ const os = require("os")
 
 module.exports = {
   name: "Brat Video",
-  desc: "Generate brat video kata muncul satu-satu",
+  desc: "Generate brat video",
   category: "Maker",
   method: "GET",
   path: "/bratvideo",
