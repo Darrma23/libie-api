@@ -17,7 +17,7 @@ module.exports = {
       required: true,
       desc: "Nama kota"
     }
-  ],
+   ],
 
   example: "/info/cuaca?q=jakarta",
 

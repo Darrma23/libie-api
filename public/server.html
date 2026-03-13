@@ -397,7 +397,10 @@
         const start = performance.now()
 
         const res = await fetch('/api/stats')
-
+         if(!res.ok){
+           throw new Error("API error")
+         }
+         
         const latency = performance.now() - start
 
         const d = await res.json()
@@ -446,10 +449,9 @@ Uptime    : ${s.uptime}`
 <tr><td>Hit All Time</td><td class="right">${a.total_hits_all}</td></tr>
 <tr><td>API Latency</td><td class="right">${latency.toFixed(0)} ms</td></tr>`
 
-        setBar("cpuBar", "cpuBarText", parseFloat(s.cpu.usage_percent))
-        setBar("memBar", "memBarText", parseFloat(s.memory.usage_percent))
-        setBar("diskBar", "diskBarText", parseFloat(s.disk.percent))
-
+        setBar("cpuBar", "cpuBarText", parseFloat(s.cpu.usage_percent) || 0)
+        setBar("memBar", "memBarText", parseFloat(s.memory.usage_percent) || 0)
+        setBar("diskBar", "diskBarText", parseFloat(s.disk.percent) || 0)
       } catch (err) {
 
         statusDot.style.background = "var(--red)"

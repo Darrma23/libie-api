@@ -90,13 +90,13 @@ function buildStatusSheetContent(data) {
      ['Status','Terhubung','cv-green'],
      ['IP Address', data.ip || '-', 'cv-green'],
      ['Sisa Akses',
-       data.remaining + ' limit',
+       (data.remaining ?? 0) + ' limit',
        data.remaining < 100 ? 'cv-red'
          : data.remaining < 300 ? 'cv-yellow'
          : 'cv-normal'
      ],
      ['Endpoint Diakses',
-       data.endpoints_used + ' endpoint',
+       data.requests + ' request',
        'cv-normal'
      ],
      ['Reset Pada',
@@ -146,7 +146,7 @@ function buildStatusCard(data) {
    
        <div class="sc-row">
          <span class="sc-label">Endpoint Diakses</span>
-         <span class="sc-value cv-normal">${data.endpoints_used || 0} endpoint</span>
+         <span class="sc-value cv-normal">${data.requests || 0} request</span>
        </div>
    
        <div class="sc-row">
@@ -215,16 +215,37 @@ async function submitReport() {
   btn.disabled = false; btn.textContent = 'Kirim ke Developer';
 }
 
-function closeAll() { ['statusSheet','rptSheet','sendSheet'].forEach(id=>document.getElementById(id)?.classList.remove('vis')); }
+function closeAll() {
+  ['statusSheet','rptSheet','sendSheet']
+    .forEach(id => document.getElementById(id)?.classList.remove('vis'));
+}
 
 function mobGo(tab) {
-  ['mobCats','mobEps'].forEach(id=>document.getElementById(id)?.classList.remove('vis'));
-  document.querySelectorAll('.mob-tab').forEach(t=>t.classList.remove('on'));
-  if (tab==='cats')        { document.getElementById('mobCats').classList.add('vis'); document.getElementById('mt-cats').classList.add('on'); }
-  else if (tab==='eps')    { document.getElementById('mobEps').classList.add('vis');  document.getElementById('mt-eps').classList.add('on'); }
-  else if (tab==='report') { openReport(); document.getElementById('mt-report').classList.add('on'); }
-  else if (tab==='status') { buildStatusSheetContent(statusData); document.getElementById('statusSheet').classList.add('vis'); document.getElementById('mt-status').classList.add('on'); }
-  else { document.getElementById('mt-home').classList.add('on'); }
+  ['mobCats','mobEps'].forEach(id =>
+    document.getElementById(id)?.classList.remove('vis')
+  );
+  document.querySelectorAll('.mob-tab')
+    .forEach(t => t.classList.remove('on'));
+  if (tab === 'cats') {
+    document.getElementById('mobCats').classList.add('vis');
+    document.getElementById('mt-cats').classList.add('on');
+  }
+  else if (tab === 'eps') {
+    document.getElementById('mobEps').classList.add('vis');
+    document.getElementById('mt-eps').classList.add('on');
+  }
+  else if (tab === 'report') {
+    openReport();
+    document.getElementById('mt-report').classList.add('on');
+  }
+  else if (tab === 'status') {
+    buildStatusSheetContent(statusData);
+    document.getElementById('statusSheet').classList.add('vis');
+    document.getElementById('mt-status').classList.add('on');
+  }
+  else {
+    document.getElementById('mt-home').classList.add('on');
+  }
 }
 
 function goHome() {
@@ -240,23 +261,6 @@ function goHome() {
   window.scrollTo({ top: 0 });
 }
 
-function openDonate() {
-  closeAll();
-  document.getElementById('donateModal')?.classList.add('show');
-}
-function closeDonate() {
-  document.getElementById('donateModal')?.classList.remove('show');
-}
-function openQRIS() {
-  document.getElementById('qrisModal')?.classList.add('show');
-}
-function closeQRIS() {
-  document.getElementById('qrisModal')?.classList.remove('show');
-}
-document.getElementById('qrisModal')?.addEventListener('click', e => {
-  if (e.target.id === 'qrisModal') closeQRIS();
-});
-
 /* ── APP LOADER ───────────────────── */
 window.addEventListener("load", () => {
   const loader = document.getElementById("appLoader");
@@ -270,7 +274,6 @@ window.addEventListener("load", () => {
 });
 
 /* ── LOADER WITH PERCENT ───────────── */
-const loader = document.getElementById('appLoader');
 const percent = document.getElementById('progressPercent');
 let start = performance.now();
 const duration = 1200;
@@ -306,7 +309,6 @@ async function init() {
   bind('mt-home','click',()=>goHome());
   bind('mt-cats','click',()=>mobGo('cats'));
   bind('mt-eps','click',()=>mobGo('eps'));
-  bind('mt-donate','click',()=>openDonate());
   bind('mt-report','click',()=>mobGo('report'));
   bind('mt-status','click',()=>mobGo('status'));
   bind('logoBtn','click',goHome);
@@ -327,7 +329,6 @@ async function init() {
     if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();document.getElementById('srchD')?.focus();}
     if(e.key==='Escape'){
       closeAll();
-      closeDonate();
       ['srchD','srchM'].forEach(id=>{const el2=document.getElementById(id);if(el2&&el2===document.activeElement){el2.value='';_doSearchNow('');el2.blur();}});
       if(window.innerWidth<=767)mobGo('home');
     }
@@ -353,12 +354,12 @@ async function init() {
           method: api.method,
           path: api.endpoint,
           description: api.deskripsi,
-          params: (api.parameter || []).map(p => ({
-            name: p.nama,
-            type: p.tipe,
-            required: p.required,
-            dtype: p.dtype,
-            desc: p.desc
+          params: (api.params || api.parameter || []).map(p => ({
+           name: p.name || p.nama,
+           type: p.type || p.tipe,
+           required: p.required ?? false,
+           dtype: p.dtype || "string",
+           desc: p.desc || ""
           })),
           example: {
             url: api.contoh
@@ -484,17 +485,19 @@ function buildDetail(ep) {
   hTop.append(badge(ep.method),hPath,span('live-tag','Live'));
   const hDesc=el('div','hero-desc'); hDesc.textContent=ep.description||'-';
   hero.append(hTop,hDesc); frag.appendChild(hero);
-
-  const pathParams  = (ep.params || []).filter(p => p.type === 'path');
-  const queryParams = (ep.params || []).filter(p => p.type === 'query');
-  const bodyParams  = (ep.params || []).filter(p => p.type === 'body');
+  const params = (ep.params || []).map(p => ({
+     ...p,
+     type: String(p.type || '').toLowerCase()
+   }));
+  const pathParams  = params.filter(p => p.type === 'path');
+  const queryParams = params.filter(p => p.type === 'query');
+  const bodyParams  = params.filter(p => p.type === 'body');
   if (pathParams.length)
      frag.appendChild(mkParamTbl('Path Params', pathParams, true));
    if (queryParams.length)
      frag.appendChild(mkParamTbl('Query Params', queryParams, true));
    if (bodyParams.length)
   frag.appendChild(mkParamTbl('Request Body', bodyParams, false));
-  // if((ep.bodyParams||[]).length)frag.appendChild(mkParamTbl('Request Body',ep.bodyParams,false));
   if(ep.example?.response){const sec=mkSection('Contoh Response');sec.appendChild(mkCodeBlock('200 OK',JSON.stringify(ep.example.response,null,2),true));frag.appendChild(sec);}
   const ts=mkSection('Coba Langsung');ts.appendChild(mkTryPanel(ep,uid));frag.appendChild(ts);
   frag.appendChild(mkCurlSection(ep, uid));
@@ -670,36 +673,26 @@ function mkBodyField(ep, uid) {
 }
 
 function buildRealtimeCurl(ep, uid) {
-  let baseUrl = location.origin + ep.path;
-  let url = baseUrl;
+  let url = location.origin + ep.path;
   let qp = [];
-  let hasUserInput = false;
   for (const p of (ep.params || [])) {
     const inp = document.getElementById('fi-'+uid+'-'+p.name);
     if (!inp) continue;
     const val = inp.value.trim();
-    if (val) {
-      hasUserInput = true;
-      if (p.type === 'query') {
-        qp.push(encodeURIComponent(p.name)+'='+encodeURIComponent(val));
-      } else {
-        url = url.replace(':'+p.name, encodeURIComponent(val));
-      }
+    if (!val) continue;
+    if (p.type === 'query') {
+      qp.push(
+        encodeURIComponent(p.name) + '=' + encodeURIComponent(val)
+      );
+    }
+    if (p.type === 'path') {
+      url = url.replace(':'+p.name, encodeURIComponent(val));
     }
   }
-  if (hasUserInput) {
-    url = location.origin + ep.path;
-    if (qp.length) url += '?' + qp.join('&');
+  if (qp.length) {
+    url += '?' + qp.join('&');
   }
-  let raw = `curl -X ${ep.method} "${url}" -H "Content-Type: application/json"`;
-  const bodyEl = document.getElementById('fi-'+uid+'-body');
-  let bodyVal = bodyEl?.value?.trim();
-  if (!bodyVal && ep.example?.body) {
-    bodyVal = JSON.stringify(ep.example.body);
-  }
-  if (bodyVal) {
-    raw += ` -d '${bodyVal.replace(/'/g,"\\'")}'`;
-  }
+  let raw = `curl -X ${ep.method} "${url}"`;
   return raw;
 }
 
@@ -854,7 +847,7 @@ async function runEp(uid) {
     clearTimeout(tid);
     if(btnEl){btnEl.disabled=false;btnEl.className='run-btn';btnEl.innerHTML='<span>&#9654;</span> Kirim';}
     if(pgbar){pgbar.style.transition='none';pgbar.style.width='0%';}
-    if(e.name==='AbortError'){tmsg?.classList.add('vis');toast('Timeout 15s','err-t');}
+    if(e.name==='AbortError'){tmsg?.classList.add('vis');toast('Timeout 30s','err-t');}
     else{toast('Network error: '+e.message,'err-t');if(rcode)rcode.innerHTML=hlJSON(JSON.stringify({error:e.message},null,2));rsec?.classList.add('vis');}
     return;
   }
@@ -950,6 +943,7 @@ function copyText(txt,btn){
   if(navigator.clipboard?.writeText)navigator.clipboard.writeText(txt).then(done).catch(()=>fallbackCopy(txt,done));
   else fallbackCopy(txt,done);
 }
+
 function fallbackCopy(txt,cb){
   const ta=document.createElement('textarea');
   ta.value=txt;ta.style.cssText='position:fixed;top:-9999px;left:-9999px;opacity:0';
