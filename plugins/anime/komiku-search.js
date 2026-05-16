@@ -12,6 +12,7 @@ module.exports = {
     {
       name: "q",
       type: "query",
+      model: "text",
       required: true,
       desc: "Judul manga"
     }

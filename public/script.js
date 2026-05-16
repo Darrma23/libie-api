@@ -215,6 +215,27 @@ async function submitReport() {
   btn.disabled = false; btn.textContent = 'Kirim ke Developer';
 }
 
+/* ── DONATE MODAL ───────────────────── */
+
+function openDonate(){
+  const m = document.getElementById("donateModal");
+  if(m) m.classList.add("show");
+}
+
+function closeDonate(){
+  const m = document.getElementById("donateModal");
+  if(m) m.classList.remove("show");
+}
+
+function copyDonate(txt){
+  if(!txt) return;
+  if(navigator.clipboard?.writeText){
+    navigator.clipboard.writeText(txt).then(()=>{
+      toast("Nomor disalin","ok-t");
+    });
+  }
+}
+
 function closeAll() {
   ['statusSheet','rptSheet','sendSheet']
     .forEach(id => document.getElementById(id)?.classList.remove('vis'));
@@ -311,6 +332,8 @@ async function init() {
   bind('mt-eps','click',()=>mobGo('eps'));
   bind('mt-report','click',()=>mobGo('report'));
   bind('mt-status','click',()=>mobGo('status'));
+  bind('mt-donate','click',()=>openDonate());
+  bind('donateClose','click',closeDonate);const donateModal = document.getElementById("donateModal");donateModal?.addEventListener("click", e=>{if(e.target === donateModal) closeDonate();});
   bind('logoBtn','click',goHome);
   bind('logoBtn','keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();goHome();}});
   bind('statusChip','click',()=>{buildStatusSheetContent(statusData);document.getElementById('statusSheet').classList.add('vis');});
@@ -356,9 +379,11 @@ async function init() {
           description: api.deskripsi,
           params: (api.params || api.parameter || []).map(p => ({
            name: p.name || p.nama,
-           type: p.type || p.tipe,
+           type: p.type || p.tipe || "query",
            required: p.required ?? false,
-           dtype: p.dtype || "string",
+           model: p.model || p.dtype || "text",
+           options: p.options || null,
+           default: p.default ?? null,
            desc: p.desc || ""
           })),
           example: {
@@ -575,16 +600,20 @@ function mkTryPanel(ep, uid) {
 }
 
 function mkField(p, ep, uid) {
+
   const wrap = el('div','tf');
   const lab  = el('label');
+
   lab.appendChild(document.createTextNode(p.name+' '));
   lab.appendChild(el('span',p.required?'req':'opt',p.required?'*wajib':'opsional'));
   lab.appendChild(document.createTextNode(' '));
+
   let badgeType = 'path';
-   if (p.type === 'query') badgeType = 'query';
-   if (p.type === 'body')  badgeType = 'body';
-   
+  if (p.type === 'query') badgeType = 'query';
+  if (p.type === 'body')  badgeType = 'body';
+
   lab.appendChild(el('span','tbg', badgeType));
+
   let exampleVal = '';
   try {
     const m = (ep.example?.url || '').match(
@@ -592,58 +621,116 @@ function mkField(p, ep, uid) {
     );
     if (m) exampleVal = decodeURIComponent(m[1]);
   } catch {}
-  if (p.dtype === 'select' && Array.isArray(p.options)) {
-    const sel = el('select');
-    sel.id = 'fi-'+uid+'-'+p.name;
+
+  /* ================= MODEL FALLBACK ================= */
+
+  const model = p.model || p.dtype || "text";
+
+  /* ================= SELECT ================= */
+
+  if (model === 'select' && p.options) {
+
+  const sel = el('select');
+  sel.id = 'fi-'+uid+'-'+p.name;
+
+  if (Array.isArray(p.options)) {
+
     p.options.forEach(opt => {
       const o = el('option');
-      o.value = opt.value;
-      o.textContent = opt.label;
+
+      if (typeof opt === "string") {
+        o.value = opt;
+        o.textContent = opt;
+      } else {
+        o.value = opt.value;
+        o.textContent = opt.label;
+      }
+
       sel.appendChild(o);
     });
-    sel.value = p.options[0]?.value || '';
-    sel.addEventListener('change', () => updateRealtimeCurl(ep, uid));
-    wrap.append(lab, sel);
-    if (p.desc) {
-      const hint = el('div','hint');
-      hint.textContent = '// ' + p.desc;
-      wrap.appendChild(hint);
-    }
-    return wrap;
+
+  } else {
+
+    Object.entries(p.options).forEach(([value,label])=>{
+      const o = el('option');
+      o.value = value;
+      o.textContent = label;
+      sel.appendChild(o);
+    });
+
   }
-  if (p.dtype === 'file') {
+
+  sel.value = sel.options[0]?.value || '';
+
+  sel.addEventListener('change', () => updateRealtimeCurl(ep, uid));
+
+  wrap.append(lab, sel);
+
+  if (p.desc) {
+    const hint = el('div','hint');
+    hint.textContent = '// ' + p.desc;
+    wrap.appendChild(hint);
+  }
+
+  return wrap;
+}
+
+  /* ================= FILE ================= */
+
+  if (model === 'file' || p.dtype === 'file') {
+
     const inp = el('input');
     inp.type = 'file';
     inp.id = 'fi-'+uid+'-'+p.name;
+
     inp.addEventListener('change', () => updateRealtimeCurl(ep, uid));
+
     wrap.append(lab, inp);
+
     if (p.desc) {
       const hint = el('div','hint');
       hint.textContent = '// ' + p.desc;
       wrap.appendChild(hint);
     }
+
     return wrap;
   }
+
+  /* ================= TEXT / NUMBER ================= */
+
   const inp = el('input');
+
   inp.id = 'fi-'+uid+'-'+p.name;
-  inp.type = 'text';
+
+  if (model === "number") {
+    inp.type = "number";
+  } else {
+    inp.type = "text";
+  }
+
   inp.value = '';
-  inp.placeholder = exampleVal || (p.dtype || 'string') + '...';
+  inp.placeholder = exampleVal || (model || 'string') + '...';
+
   inp.autocomplete='off';
   inp.spellcheck=false;
+
   inp.addEventListener('input', () => updateRealtimeCurl(ep, uid));
+
   inp.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.isComposing) {
       e.preventDefault();
       runEp(uid);
     }
   });
+
   wrap.append(lab, inp);
+
   if (p.desc) {
     const hint = el('div','hint');
     hint.textContent = '// ' + p.desc;
     wrap.appendChild(hint);
   }
+
   return wrap;
 }
 

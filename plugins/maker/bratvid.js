@@ -1,5 +1,7 @@
 // plugins/Maker/bratvideo.js
-const { createCanvas } = require("@napi-rs/canvas")
+const { createCanvas, GlobalFonts } = require("@napi-rs/canvas")
+GlobalFonts.registerFromPath("lib/Cobbler-SemiBold.ttf", "Cobbler")
+
 const ffmpeg = require("fluent-ffmpeg")
 const fs = require("fs")
 const path = require("path")
@@ -31,8 +33,8 @@ module.exports = {
       const text = req.query.q
       const words = text.split(" ")
 
-      const width = 720
-      const height = 720
+      const width = 512
+      const height = 512
 
       const startX = 40
       const startY = 40
@@ -41,7 +43,6 @@ module.exports = {
 
       const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "brat-"))
 
-      // fungsi wrap text
       function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
 
         const words = text.split(" ")
@@ -70,14 +71,13 @@ module.exports = {
         ctx.fillText(line, x, currentY)
       }
 
-      // fungsi cari font size yang muat
       function getFontSize(ctx, text, maxWidth, maxHeight, startSize) {
 
         let size = startSize
 
         while (size > 20) {
 
-          ctx.font = `bold ${size}px Sans`
+          ctx.font = `bold ${size}px Cobbler`
           const lineHeight = size * 1.2
 
           const words = text.split(" ")
@@ -108,7 +108,6 @@ module.exports = {
         return 20
       }
 
-      // cari font size terbaik
       const testCanvas = createCanvas(width, height)
       const testCtx = testCanvas.getContext("2d")
 
@@ -122,24 +121,23 @@ module.exports = {
 
       const lineHeight = fontSize * 1.2
 
-      // generate frame
       for (let i = 0; i < words.length; i++) {
 
         const canvas = createCanvas(width, height)
         const ctx = canvas.getContext("2d")
-
+      
         ctx.fillStyle = "#ffffff"
         ctx.fillRect(0, 0, width, height)
-
-        ctx.font = `bold ${fontSize}px Sans`
+      
+        ctx.font = `bold ${fontSize}px Cobbler`
         ctx.fillStyle = "#000000"
         ctx.textAlign = "left"
         ctx.textBaseline = "top"
-
+      
         const currentText = words.slice(0, i + 1).join(" ")
-
+      
         wrapText(ctx, currentText, startX, startY, maxWidth, lineHeight)
-
+      
         const frame = path.join(tmp, `frame${i}.png`)
         fs.writeFileSync(frame, canvas.toBuffer("image/png"))
       }

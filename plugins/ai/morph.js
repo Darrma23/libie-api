@@ -192,7 +192,7 @@ module.exports = {
        name: "url",
        type: "query",
        required: true,
-       dtype: "string",
+       model: "text",
        desc: "URL gambar sumber"
      },
      {

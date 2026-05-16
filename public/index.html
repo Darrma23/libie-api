@@ -824,7 +824,7 @@ body > * { position: relative; z-index: 1; }
 .tf .req { color: var(--red); font-size: 8px; font-weight: 700; }
 .tf .opt { color: var(--t3); font-size: 8px; }
 .tf .tbg { font-size: 8px; padding: 1px 5px; background: var(--bg5); border: 1px solid var(--b2); color: var(--t3); border-radius: 3px; }
-.tf input, .tf textarea {
+.tf input, .tf textarea, .tf select {
   width: 100%;
   padding: 9px 11px;
   background: var(--bg3);
@@ -843,6 +843,17 @@ body > * { position: relative; z-index: 1; }
 .tf input.err { border-color: var(--red); }
 .tf textarea { resize: vertical; line-height: 1.55; min-height: 85px; }
 .tf .hint { font-family: var(--mono); font-size: 9px; color: var(--t3); margin-top: 3px; line-height: 1.7; }
+.tf select {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 20 20' fill='%23aaa' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M5 7l5 6 5-6H5z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 12px;
+  padding-right: 28px;
+}
+.tf select:focus { 
+  border-color: rgba(232,160,32,.4);
+  box-shadow: 0 0 0 3px rgba(232,160,32,.06);
+}
 
 .pgwrap { height: 2px; background: var(--bg4); overflow: hidden; }
 .pgbar { height: 100%; background: linear-gradient(90deg, var(--acc), var(--acc3)); width: 0; transition: width .3s ease; }
@@ -1581,6 +1592,27 @@ body > * { position: relative; z-index: 1; }
     <div class="send-actions">
       <button class="send-cancel" id="sendCancelBtn" type="button">Batal</button>
       <button class="send-submit" id="sendSubmitBtn" type="button">Kirim ke Developer</button>
+    </div>
+  </div>
+</div>
+
+<div class="donate-modal" id="donateModal">
+  <div class="donate-box">
+    <button class="donate-close" id="donateClose">✕</button>
+    <div class="donate-title">Dukung LIBIE API</div>
+    <div class="donate-sub">
+      Donasi membantu menjaga server tetap aktif dan menambah endpoint baru.
+    </div>
+    <div class="donate-item">
+      <span>DANA</span>
+      <button onclick="copyDonate('081933732553')">Salin</button>
+    </div>
+    <div class="donate-item">
+      <span>BRI</span>
+      <button onclick="copyDonate('598601041348535')">Salin</button>
+    </div>
+    <div class="donate-item qris" onclick="openQRIS()">
+      Lihat QRIS
     </div>
   </div>
 </div>

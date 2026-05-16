@@ -26,10 +26,11 @@ const CREATOR = "Himejima"
 function getFingerprint(req) {
   const ip = getIP(req)
   const ua = req.headers['user-agent'] || ''
+  const lang = req.headers['accept-language'] || ''
 
   return crypto
     .createHash("sha1")
-    .update(ip + ua)
+    .update(ip + ua + lang)
     .digest("hex")
 }
 
@@ -78,6 +79,29 @@ app.use((req,res,next)=>{
   next()
 })
 
+app.use((req, res, next) => {
+
+  try {
+
+    const tmpDir = os.tmpdir()
+    const files = fs.readdirSync(tmpDir)
+
+    for (const file of files) {
+
+      const full = path.join(tmpDir, file)
+
+      try {
+        fs.rmSync(full, { recursive: true, force: true })
+      } catch {}
+
+    }
+
+  } catch {}
+
+  next()
+
+})
+
 /* ================= API STATS ================= */
 
 app.use('/api', async (req,res,next)=>{
@@ -117,6 +141,8 @@ app.use('/api', async (req,res,next)=>{
 const fileUpload = require("express-fileupload")
 
 app.use(fileUpload({
+  useTempFiles: true,
+  tempFileDir: os.tmpdir(),
   limits: { fileSize: 10 * 1024 * 1024 },
   abortOnLimit: true,
   responseOnLimit: {
@@ -133,13 +159,13 @@ app.use('/api', pluginRouter)
 const loadedPlugins = new Map()
 
 let apiList = []
-let count = 0
 
 /* ================= LOAD PLUGINS ================= */
 
 function loadPlugins(){
 
   pluginRouter.stack = []
+  loadedPlugins.clear()
 
   const pluginsDir = path.join(__dirname,"plugins")
 
@@ -170,8 +196,13 @@ function loadPlugins(){
       if(!plugin.name || !plugin.method || !plugin.path || typeof plugin.run !== "function"){
         return
       }
-
+      
+      const allowedMethods = ["get","post","put","delete"]
       const method = plugin.method.toLowerCase()
+       if(!allowedMethods.includes(method)){
+          console.log(`⚠ invalid method ${plugin.method} in ${file}`)
+          return
+       }
 
       const fullPath = `/${category}/${plugin.path}`.replace(/\/+/g,"/")
 
@@ -202,8 +233,6 @@ function loadPlugins(){
         params:plugin.params || []
       })
 
-      count++
-
       console.log(`✔ ${method.toUpperCase()} /api${fullPath}`)
 
     })
@@ -221,9 +250,14 @@ const watcher = chokidar.watch(
 
 loadPlugins()
 
+let reloadTimer
 watcher.on("change",file=>{
-  console.log("♻ reload",file)
-  loadPlugins()
+  console.log("♻ change detected:",file)
+  clearTimeout(reloadTimer)
+  reloadTimer = setTimeout(()=>{
+    console.log("♻ reloading plugins...")
+    loadPlugins()
+  },500)
 })
 
 /* ================= API INFO ================= */

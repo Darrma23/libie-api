@@ -41,8 +41,7 @@ module.exports = {
         });
       }
 
-      const screenshotUrl =
-        `https://image.thum.io/get/fullpage/${encodeURIComponent(url)}`;
+      const screenshotUrl = `https://image.thum.io/get/fullpage/${url}`;
 
       return res.json({
         status: true,

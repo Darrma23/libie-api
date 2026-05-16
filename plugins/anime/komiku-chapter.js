@@ -17,6 +17,7 @@ module.exports = {
     {
       name: "url",
       type: "query",
+      model: "text",
       required: true,
       desc: "URL chapter"
     }

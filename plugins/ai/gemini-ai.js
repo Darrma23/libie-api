@@ -133,35 +133,26 @@ module.exports = {
         name: "prompt",
         type: "query",
         required: true,
-        dtype: "string",
+        model: "text",
         desc: "Pesan untuk Gemini"
      },
      {
         name: "instruction",
         type: "query",
         required: false,
-        dtype: "string",
+        model: "text",
         desc: "System prompt / karakter AI"
       },
       {
          name: "session_id",
          type: "query",
          required: false,
-         dtype: "string",
+         model: "text",
          desc: "Session ID untuk melanjutkan chat"
       }
    ],
  
-   example: [
-      {
-         title: "Start Chat",
-         url: "/ai/gemini?prompt=Halo"
-      },
-      {
-         title: "Continue Chat",
-         url: "/ai/gemini?prompt=Siapa aku tadi?&session_id=gmn_xxxxx"
-      }
-   ],
+   example: "/ai/gemini?prompt=Halo, kamu siapa",
 
   async run(req, res) {
     try {
