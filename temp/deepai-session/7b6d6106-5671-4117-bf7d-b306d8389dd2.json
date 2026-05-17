@@ -1,0 +1,13 @@
+{
+  "sessionUuid": "4e57d27b-3920-4aa3-89b2-1b531994f80a",
+  "messages": [
+    {
+      "role": "user",
+      "content": "versi berapa"
+    },
+    {
+      "role": "assistant",
+      "content": "Maaf, saya tidak dapat memahami pertanyaan Anda secara spesifik. Anda ingin bertanya tentang versi berapa dari apa? Silakan memberikan lebih banyak konteks atau informasi tentang apa yang Anda ingin tanyakan. Saya akan berusaha membantu Anda dengan senang hati!"
+    }
+  ]
+}

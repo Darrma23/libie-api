@@ -1,0 +1,13 @@
+{
+  "sessionUuid": "7b6d6106-5671-4117-bf7d-b306d8389dd2",
+  "messages": [
+    {
+      "role": "user",
+      "content": "halo kamu siapa"
+    },
+    {
+      "role": "assistant",
+      "content": "Saya adalah assistant AI yang dibangun oleh Meta, saya dapat membantu menjawab pertanyaan dan memberikan informasi tentang berbagai topik. Saya dapat berkomunikasi dalam berbagai bahasa, termasuk bahasa Indonesia. Bagaimana saya dapat membantu kamu hari ini?"
+    }
+  ]
+}

@@ -44,7 +44,7 @@ module.exports = {
       const timeout = setTimeout(() => controller.abort(), 15000);
 
       const response = await fetch(
-        `https://bendith.my.id/end.php?check=package&number=${number}&version=2`,
+        `https://xl-ku.my.id/end.php?check=package&number=${number}&version=2`,
         {
           headers: {
             "User-Agent":
