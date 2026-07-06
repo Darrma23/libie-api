@@ -1,13 +1,17 @@
 {
   "name": "libie-api",
-  "version": "1.1.0",
-  "description": "REST API modular dengan auto plugin loading + frontend Tailwind CDN",
-  "main": "server.js",
+  "version": "2.0.0",
+  "description": "Production-ready plugin-based REST API with modular architecture",
+  "main": "src/server.js",
   "type": "commonjs",
   "scripts": {
-    "start": "NODE_ENV=production node server.js",
-    "dev": "nodemon server.js",
-    "build": "echo \"No build step required\""
+    "start": "NODE_ENV=production node src/server.js",
+    "dev": "nodemon src/server.js",
+    "build": "echo \"No build step required\"",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "test": "node test-runner.js",
+    "test:watch": "node --test --watch tests/**/*.test.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1000.0",
@@ -38,7 +42,9 @@
     "zencf": "^2.0.3"
   },
   "devDependencies": {
-    "nodemon": "^3.1.0"
+    "eslint": "^9.16.0",
+    "nodemon": "^3.1.0",
+    "prettier": "^3.5.0"
   },
   "engines": {
     "node": ">=18"

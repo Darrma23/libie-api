@@ -8,256 +8,102 @@
 
 <br/>
 
-# 🚀 Libie REST API
+# Libie REST API
 
-**Scalable Modular REST API Framework built with Express.js**
+A production-ready, plugin-based REST API built with Express.js and a modular architecture that preserves the existing plugin ecosystem while adding modern runtime safeguards.
 
-<br/>
+## Highlights
 
-<img src="https://img.shields.io/badge/Node.js-18+-green?style=flat-square&logo=node.js" />
-<img src="https://img.shields.io/badge/Express.js-Framework-black?style=flat-square&logo=express" />
-<img src="https://img.shields.io/badge/Redis-Caching-red?style=flat-square&logo=redis" />
-<img src="https://img.shields.io/badge/Architecture-Plugin--Based-blue?style=flat-square" />
+- Modular app bootstrap under src/
+- Automatic plugin discovery and hot reload support
+- Standardized success/error API responses
+- Centralized logging and error handling
+- Rate limiting, sanitization, API key support, and request size limits
+- Health, version, uptime, plugin list, plugin info, and reload endpoints
 
-</div>
-
----
-
-## ⚡ Overview
-
-Libie REST API adalah backend modular berbasis plugin dengan sistem auto-loading route.
-
-Tambahkan file ke folder `plugins/` → endpoint otomatis aktif tanpa perlu registrasi router manual.
-
-Dirancang untuk:
-
-- Clean architecture  
-- Scalability  
-- Maintainability  
-- Rapid feature expansion  
-- Structured API responses  
-
----
-
-## 🎯 Why Libie API?
-
-Banyak backend kecil cepat berubah jadi messy karena:
-
-- Manual route registration  
-- Response format tidak konsisten  
-- Tidak ada struktur modular  
-
-Libie API menyelesaikan itu dengan:
-
-- Auto plugin-based routing  
-- Standardized global response format  
-- Centralized middleware handling  
-- Clean modular structure  
-
-Framework ini cocok untuk rapid expansion tanpa mengorbankan struktur.
-
----
-
-## 🏗 Architecture Overview
-
-```mermaid
-graph TD
-
-A[Client Request] --> B[Express Server]
-B --> C[Global Middleware]
-C --> D[Rate Limiter]
-C --> E[JSON Parser]
-C --> F[Logger]
-
-B --> G{Route Resolver}
-G -->|Match Plugin| H[Plugin Loader]
-H --> I[Plugin Executor]
-I --> J[External API / Scraper]
-I --> K[Redis Cache]
-
-J --> I
-K --> I
-I --> L[Response Formatter]
-L --> M[Client Response]
-```
-
----
-
-## 📂 Project Structure
+## Project Structure
 
 ```bash
 .
-├── server.js            # Entry point & server bootstrap
-├── lib/                 # Core utilities
-│   ├── iplimiter.js     # Rate limiting logic
-│   ├── redis.js         # Redis connection handler
-│   ├── scrape/
-│   │   └── otakudesu.js
-│   └── storage.js
-├── plugins/             # Auto-loaded modular endpoints
-│   ├── ai/
-│   ├── anime/
-│   ├── download/
-│   ├── info/
-│   ├── internet/
-│   ├── maker/
-│   └── tool/
-├── public/              # Frontend documentation UI
-│   ├── 404.html
-│   ├── index.html
-│   ├── script.js
-│   └── server.html
-├── save.sh              # Utility / deployment script
+├── src/
+│   ├── app.js
+│   ├── server.js
+│   ├── config/
+│   ├── middleware/
+│   ├── routes/
+│   ├── services/
+│   └── utils/
+├── plugins/
+├── lib/
+├── docs/
+├── public/
 └── package.json
 ```
 
----
-
-## 🔌 Plugin System
-
-Setiap endpoint didefinisikan sebagai module:
-
-```js
-module.exports = {
-  name: "Cek Gempa",
-  desc: "Informasi gempa terkini dari BMKG",
-  category: "Info",
-  method: "GET",
-  path: "/gempa",
-
-  async run(req, res) {
-    res.status(200).json({
-      status: true,
-      data: {}
-    });
-  }
-};
-```
-
-File yang ditambahkan ke `plugins/` otomatis:
-
-- Terdaftar sebagai route  
-- Muncul di `/api/info`  
-- Mengikuti format response global  
-- Mendapat proteksi middleware  
-
----
-
-## 📦 Global Response Format
-
-### ✅ Success
-
-```json
-{
-  "status": true,
-  "data": {},
-  "metadata": {
-    "timestamp": "ISO-8601"
-  }
-}
-```
-
-### ❌ Error
-
-```json
-{
-  "status": false,
-  "message": "Error message",
-  "error": "Detail error"
-}
-```
-
----
-
-## 🔎 Example Usage
-
-### Request
-
-```http
-GET /api/gempa
-```
-
-### Response
-
-```json
-{
-  "status": true,
-  "data": {
-    "magnitude": 5.2,
-    "location": "Indonesia"
-  },
-  "metadata": {
-    "timestamp": "2026-03-03T12:00:00Z"
-  }
-}
-```
-
----
-
-## 🛡 Core Features
-
-| Feature             | Description                          |
-|---------------------|--------------------------------------|
-| Auto Plugin Loader  | Tanpa router manual                  |
-| Rate Limiting       | Basic anti-spam protection           |
-| Redis Caching       | Optional performance layer           |
-| Timeout Protection  | External API safety                  |
-| Structured Error    | Konsisten & clean response format    |
-| Frontend Docs       | UI responsif di `/`                  |
-
----
-
-## ⚡ Performance Strategy
-
-- Redis caching untuk request berulang  
-- Timeout protection untuk mencegah hanging request  
-- Lightweight plugin execution model  
-- Standardized response structure  
-
----
-
-## 🛡 Security Considerations
-
-- Basic rate limiting  
-- Structured error handling  
-- Environment-based configuration  
-- Timeout protection for external calls  
-
----
-
-## ⚙️ Installation
+## Installation
 
 ```bash
-git clone https://github.com/Darrma23/libie-api.git
-cd libie-api
 npm install
 ```
 
----
-
-## ▶ Run Development
+## Run
 
 ```bash
 npm run dev
 ```
 
-## ▶ Run Production
+Production:
 
 ```bash
 npm start
 ```
 
-Default:
+## Environment Variables
 
+Copy .env.example to .env and adjust values as needed.
+
+```bash
+cp .env.example .env
 ```
-http://localhost:3000
+
+## API Response Format
+
+Success:
+
+```json
+{
+  "success": true,
+  "creator": "Himejima",
+  "code": 200,
+  "result": {},
+  "execution_time": "12ms"
+}
 ```
 
----
+Error:
 
-## 🔐 Environment Variables
+```json
+{
+  "success": false,
+  "error": "ValidationError",
+  "message": "Validation failed"
+}
+```
 
-Buat file `.env`:
+## Core Endpoints
+
+- GET /health
+- GET /stats
+- GET /version
+- GET /uptime
+- GET /api/plugins
+- GET /api/plugins/:pluginName
+- POST /api/plugins/reload
+
+## Plugin Development
+
+See [docs/PLUGIN_DEVELOPMENT_GUIDE.md](docs/PLUGIN_DEVELOPMENT_GUIDE.md) for plugin authoring details.
+
 
 ```
 PORT=3000
