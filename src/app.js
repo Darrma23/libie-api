@@ -47,6 +47,10 @@ function createApp() {
   app.use('/files', express.static(path.join(process.cwd(), 'files')))
   app.use(express.static(path.join(process.cwd(), 'public')))
 
+  app.get('/', (req, res) => {
+    res.sendFile(path.join(process.cwd(), 'public', 'index.html'))
+  })
+
   const limiter = rateLimit({
     windowMs: env.RATE_LIMIT_WINDOW_MS,
     max: env.RATE_LIMIT_MAX_REQUESTS,
